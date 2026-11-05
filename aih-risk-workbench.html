@@ -1,0 +1,856 @@
+<title>AIH Risk Workbench</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: step rail on the left (top strip on phones), KPI band, one working view per process step */
+:root {
+  --bg: #F2F3F7; --surface: #FFFFFF; --sunk: #F7F8FB; --ink: #161A2C; --muted: #5A6177; --line: #DCDFE8;
+  --accent: #2E47C6; --accent-ink: #FFFFFF; --accent-soft: #E7EBFB;
+  --crit: #B8232F; --crit-bg: #FBE3E5; --high: #B9560F; --high-bg: #FCEADB; --lim: #8A6A00; --lim-bg: #FAF0CC; --low: #23794F; --low-bg: #DFF2E7;
+  --mark: #2E47C6;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0E1120; --surface: #161A2B; --sunk: #12162504; --ink: #E6E8F2; --muted: #98A0B8; --line: #2A3048;
+  --accent: #8C9EFF; --accent-ink: #0E1120; --accent-soft: #222A50;
+  --crit: #FF7C86; --crit-bg: #3B1A22; --high: #FFA45E; --high-bg: #3A2616; --lim: #E9C74E; --lim-bg: #33290F; --low: #5FD39A; --low-bg: #12301F;
+  --mark: #8C9EFF; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0E1120; --surface: #161A2B; --sunk: #12162504; --ink: #E6E8F2; --muted: #98A0B8; --line: #2A3048;
+  --accent: #8C9EFF; --accent-ink: #0E1120; --accent-soft: #222A50;
+  --crit: #FF7C86; --crit-bg: #3B1A22; --high: #FFA45E; --high-bg: #3A2616; --lim: #E9C74E; --lim-bg: #33290F; --low: #5FD39A; --low-bg: #12301F;
+  --mark: #8C9EFF; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 26px; font-weight: 700; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+.id { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.eyebrow { font-family: var(--f-display); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 18px; }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 68ch; }
+.top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.kpi { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kpi .v { font-family: var(--f-display); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.kpi .v small { font-size: 15px; color: var(--muted); font-weight: 500; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+.meter { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.meter > i { display: block; height: 100%; background: var(--accent); }
+.meter.over > i { background: var(--crit); }
+
+.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+nav.steps { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 2px; }
+nav.steps .grp { margin: 14px 0 4px 10px; }
+nav.steps .grp:first-child { margin-top: 0; }
+nav.steps button { all: unset; cursor: pointer; display: flex; align-items: baseline; gap: 10px; padding: 7px 10px; border-radius: 7px; color: var(--ink); font-weight: 500; }
+nav.steps button .n { font-family: var(--f-mono); font-size: 11px; color: var(--muted); width: 14px; }
+nav.steps button:hover { background: var(--accent-soft); }
+nav.steps button[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+nav.steps button[aria-current="page"] .n { color: var(--accent-ink); opacity: .75; }
+nav.steps button:focus-visible, .btn:focus-visible, .chip:focus-visible, tr.click:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main.view { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.vhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 20px; }
+.vhead p { margin: 4px 0 0; color: var(--muted); max-width: 72ch; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel.pad { padding: 16px; }
+.scroll { overflow-x: auto; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 9px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { font-family: var(--f-display); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--surface); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.sec td { background: var(--accent-soft); font-family: var(--f-display); font-weight: 600; font-size: 13px; padding-block: 6px; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-soft); }
+tr.detail td { background: var(--bg); }
+tfoot td { font-weight: 600; border-top: 2px solid var(--line); border-bottom: 0; }
+td.desc { color: var(--muted); min-width: 260px; max-width: 520px; }
+
+.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-Critical, .p-H { color: var(--crit); background: var(--crit-bg); }
+.b-High { color: var(--high); background: var(--high-bg); }
+.b-Limited, .p-M { color: var(--lim); background: var(--lim-bg); }
+.b-Low, .p-L { color: var(--low); background: var(--low-bg); }
+.strat-Mitigate { color: var(--accent); background: var(--accent-soft); }
+.strat-Accept { color: var(--muted); background: var(--bg); border: 1px solid var(--line); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { all: unset; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.chip .id { font-size: 11px; }
+.chip:hover { border-color: var(--accent); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip.on .id { color: var(--accent-ink); opacity: .8; }
+.chip.static { cursor: default; }
+.chip.static:hover { border-color: var(--line); }
+
+.btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-weight: 600; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--crit); }
+.btn.small { padding: 3px 9px; font-size: 12px; }
+
+input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+input[type="number"] { width: 76px; font-variant-numeric: tabular-nums; text-align: right; }
+input.wide, select.wide { width: 100%; min-width: 180px; }
+textarea { width: 100%; min-width: 220px; resize: vertical; min-height: 56px; }
+select.use { font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
+select.use-yes { color: var(--low); background: var(--low-bg); border-color: transparent; }
+select.use-no { color: var(--muted); background: var(--bg); }
+select.use-unset { color: var(--lim); border-style: dashed; }
+input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbar input[type="search"] { min-width: 0; width: 280px; max-width: 100%; }
+label.inline { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 500; max-width: 100%; min-width: 0; }
+.toolbar select { max-width: 100%; min-width: 0; }
+
+.note { font-size: 13px; color: var(--muted); padding: 10px 14px; border-left: 3px solid var(--line); background: var(--surface); border-radius: 0 8px 8px 0; }
+.note.ok { border-left-color: var(--low); }
+.note.warn { border-left-color: var(--crit); color: var(--ink); }
+
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 24px; font-size: 13px; }
+.legend div { display: flex; gap: 8px; align-items: baseline; }
+.legend .pill { flex: none; }
+
+/* risk assessment */
+.assess { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.heat { display: grid; grid-template-columns: 26px repeat(5, minmax(0, 1fr)); gap: 3px; font-size: 11px; }
+.heat .c { aspect-ratio: 1.25; max-width: 100%; border-radius: 4px; padding: 3px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 3px; }
+.heat .ax { display: flex; align-items: center; justify-content: center; color: var(--muted); font-family: var(--f-mono); }
+.heat .tag { font-family: var(--f-mono); font-size: 10px; font-weight: 500; background: var(--surface); color: var(--ink); border-radius: 3px; padding: 0 4px; line-height: 16px; border: 1px solid var(--line); }
+.heat-cap { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; padding-left: 29px; }
+
+/* matrices */
+table.mx th, table.mx td { padding: 4px 6px; text-align: center; border: 1px solid var(--line); }
+table.mx th:first-child, table.mx td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+table.mx tr.sec td { background: var(--accent-soft); }
+table.mx th { font-family: var(--f-mono); font-size: 11px; text-transform: none; letter-spacing: 0; }
+table.mx td.dot::after { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--mark); }
+.key { columns: 2 280px; column-gap: 24px; font-size: 13px; }
+.key div { break-inside: avoid; padding: 2px 0; }
+
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; cursor: pointer; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+textarea.code { font-family: var(--f-mono); font-size: 12px; min-height: 150px; white-space: pre; overflow-x: auto; background: var(--bg); }
+.issues { margin: 6px 0 0; padding-left: 18px; }
+details summary { cursor: pointer; font-weight: 500; }
+.ctrl-desc { font-size: 12px; color: var(--muted); margin-top: 4px; max-width: 46ch; }
+.confirm { display: inline-flex; gap: 6px; align-items: center; }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-weight: 500; z-index: 20; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  nav.steps { position: static; flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  nav.steps .grp { display: none; }
+  nav.steps button { white-space: nowrap; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .assess { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) { .btn, .chip, nav.steps button { transition: background .12s, border-color .12s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">AI system risk management</div>
+      <h1>AIH Risk Workbench</h1>
+      <p>Go from AI assets to threats to controls, then score, evaluate and treat the risks in your register. Built from <span class="id">AIH Demo.xlsx</span>.</p>
+    </div>
+    <div class="top-actions" id="top-actions"></div>
+  </header>
+  <section class="kpis" id="kpis" aria-label="Register summary"></section>
+  <div class="app">
+    <nav class="steps" id="nav" aria-label="Workbook sections"></nav>
+    <main class="view" id="view"></main>
+  </div>
+</div>
+
+<script>
+const DATA = {"assets":[{"id":"A1","name":"Data","desc":"Any form of data used in the lifecycle of AI systems, including their tarining process, deployment and retraining.","value":"H","exposure":"H"},{"id":"A1.1","name":"Raw data","desc":"Unprocessed data collected from various sources before any cleaning or transformation.","value":"H","exposure":"H"},{"id":"A1.2","name":"Public data sets","desc":"Openly available datasets that can be used for training and testing AI models.","value":"M","exposure":"M"},{"id":"A1.3","name":"Training data","desc":"Data specifically used to train AI models, helping them learn patterns and make predictions.","value":"H","exposure":"H"},{"id":"A1.4","name":"Testing and Validation data","desc":"Data used to evaluate the performance of AI models to ensure accuracy and generalisation.","value":"H","exposure":"H"},{"id":"A1.5","name":"Log data","desc":"Records of AI system operations, including errors, predictions, and performance metrics.","value":"M","exposure":"M"},{"id":"A1.6","name":"Metadata","desc":"Information describing data attributes, structure, and context, aiding in data management.","value":"M","exposure":"M"},{"id":"A2","name":"Models","desc":"AI models and their components that define how data is processed and interpreted.","value":"H","exposure":"H"},{"id":"A2.1","name":"Algorithms","desc":"Mathematical rules and logic used to process and analyze data in AI systems.","value":"H","exposure":"H"},{"id":"A2.2","name":"Models","desc":"Trained AI structures that make predictions or decisions based on input data.","value":"H","exposure":"H"},{"id":"A2.3","name":"Model parameters","desc":"Learned numerical values within an AI model that influence its predictions.","value":"H","exposure":"H"},{"id":"A2.4","name":"Hyper-parameters","desc":"Configurable settings that control the training process and affect model performance.","value":"M","exposure":"M"},{"id":"A2.5","name":"Pre-trained models","desc":"Models that have been trained on large datasets and can be fine-tuned for specific tasks.","value":"M","exposure":"M"},{"id":"A2.6","name":"Model architectures","desc":"Structural design of models, such as CNNs for image recognition or Transformers for NLP.","value":"M","exposure":"M"},{"id":"A3","name":"Artefacts","desc":"Supporting components and governance structures essential for AI model management.","value":"M","exposure":"M"},{"id":"A3.1","name":"Data governance policies","desc":"Guidelines and protocols for managing data quality, security, and compliance.","value":"H","exposure":"H"},{"id":"A3.2","name":"Descriptive statistical parameters","desc":"Summary statistics used to analyze data distribution and characteristics.","value":"L","exposure":"L"},{"id":"A3.3","name":"Model frameworks","desc":"Predefined libraries and architectures that help develop AI models efficiently.","value":"M","exposure":"M"},{"id":"A4","name":"Actors/Stakeholders","desc":"Key individuals or groups involved in the AI development lifecycle.","value":"H","exposure":"H"},{"id":"A4.1","name":"Data owners","desc":"Individuals or organizations responsible for data access and management.","value":"H","exposure":"H"},{"id":"A4.2","name":"Data scientists","desc":"Professionals who design and implement AI models using statistical and machine-learning techniques.","value":"H","exposure":"H"},{"id":"A4.3","name":"Data engineers","desc":"Experts responsible for processing and managing large-scale datasets.","value":"H","exposure":"H"},{"id":"A4.4","name":"Model providers","desc":"Organizations or teams that develop and supply AI models for different applications.","value":"H","exposure":"H"},{"id":"A4.5","name":"MLOps Engineers","desc":"Professionals who manage AI model deployment, monitoring, and maintenance in production.","value":"H","exposure":"H"},{"id":"A4.6","name":"Ethics & Compliance Officers","desc":"Experts ensuring AI models adhere to ethical standards and legal regulations.","value":"H","exposure":"H"},{"id":"A5","name":"Processes","desc":"Critical workflows involved in AI system development and maintenance.","value":"H","exposure":"H"},{"id":"A5.1","name":"Data ingestion","desc":"The process of collecting and importing data from various sources.","value":"H","exposure":"H"},{"id":"A5.2","name":"Data pre-processing","desc":"Cleaning and transforming raw data into a usable format.","value":"H","exposure":"H"},{"id":"A5.3","name":"Data collection","desc":"Gathering data from multiple sources for model training and evaluation.","value":"H","exposure":"H"},{"id":"A5.4","name":"Data augmentation","desc":"Techniques used to artificially expand datasets to improve model performance.","value":"M","exposure":"M"},{"id":"A5.5","name":"Feature selection","desc":"Identifying relevant variables that contribute to a model's accuracy.","value":"M","exposure":"M"},{"id":"A5.6","name":"Training","desc":"The process of teaching an AI model using training datasets.","value":"H","exposure":"H"},{"id":"A5.7","name":"Tuning","desc":"Adjusting model parameters and hyper-parameters to optimize performance.","value":"H","exposure":"H"},{"id":"A5.8","name":"Model monitoring","desc":"Continuous tracking of AI model performance in production to detect drift.","value":"H","exposure":"H"},{"id":"A5.9","name":"Model retraining","desc":"Updating models periodically to adapt to new data and maintain accuracy.","value":"H","exposure":"H"},{"id":"A6","name":"Environment/Tools","desc":"Software and platforms that support AI model development and deployment.","value":"M","exposure":"M"},{"id":"A6.1","name":"Algorithm libraries","desc":"Prebuilt collections of algorithms used for AI and machine learning.","value":"M","exposure":"M"},{"id":"A6.2","name":"ML platforms","desc":"Cloud-based or local environments for training and deploying AI models.","value":"H","exposure":"H"},{"id":"A6.3","name":"Optimisation techniques","desc":"Methods used to enhance AI model performance and efficiency","value":"M","exposure":"M"},{"id":"A6.4","name":"Integrated development enviroments","desc":"Software tools that provide a workspace for coding, debugging, and testing AI applications.","value":"M","exposure":"M"},{"id":"A6.5","name":"Edge AI devices","desc":"Hardware that enables AI models to run locally on IoT devices or mobile phones.","value":"M","exposure":"M"},{"id":"A6.6","name":"Inference engines","desc":"Specialized frameworks for running trained AI models efficiently in production.","value":"H","exposure":"H"}],"legend":["Value (the importance off the asset in the total lifecycle of the AI system)","High (H): Essential for AI model functionality—without these, the system wouldn't work.","Medium (M): Important but not absolutely critical—losing them would impact efficiency, not functionality.","Low (L): Supportive assets that enhance AI but don’t directly impact core operations.","Risk exposure (Impact)","High (H): If compromised, could cause major harm (data breaches, model failure, AI bias, security risks).","Medium (M): Some risks exist but are manageable (explainability reports, metadata).","Low (L): Minimal risk (synthetic data, basic statistical parameters)."],"threats":[{"id":"T1","name":"Data risks","desc":""},{"id":"T1.1","name":"Input manipulation","desc":"Altering the input data provided to AI systems to intentionally mislead or skew outputs."},{"id":"T1.2","name":"Introducing of malicious samples into training data","desc":"Deliberate insertion of harmful or misleading data into training datasets, resulting in biased or compromised models."},{"id":"T1.3","name":"Data integrity breaches","desc":"Unauthorized modifications to the data, leading to corrupted training or inaccurate model predictions."},{"id":"T1.4","name":"Quality of the database","desc":"Poor quality datasets (e.g., incomplete, noisy, or outdated data) reducing the reliability and robustness of AI models."},{"id":"T1.5","name":"Data drift due to external factors such as reward hacking","desc":"Changes in real-world patterns or behaviors that render the model's learned rules less effective,causing AI systems to exploit unintended behaviors in their objectives."},{"id":"T1.6","name":"Data drift due to seasonal changes","desc":"Periodic variations in data (e.g., e-commerce patterns) that reduce model accuracy over time."},{"id":"T1.7","name":"Data drift due to changes in processes","desc":"Organizational or operational changes altering the underlying data distribution, making the AI system less accurate."},{"id":"T1.8","name":"Concept drifts","desc":"When the relationship between input data and output labels changes over time, degrading the model's predictive power."},{"id":"T1.9","name":"Small dataset size","desc":"Training AI with insufficient data leads to biased, unreliable, or non-generalisable models."},{"id":"T2","name":"Attacks","desc":""},{"id":"T2.1","name":"Adversarial attacks","desc":"Small, imperceptible perturbations to input data that mislead AI systems"},{"id":"T2.2","name":"Poisoning attacks","desc":"Contaminating training data with malicious samples to degrade model performance or achieve specific outcomes."},{"id":"T2.3","name":"Inference attacks","desc":"Extracting sensitive information about the training dataset by observing the AI model’s outputs."},{"id":"T2.4","name":"Evasion attacks","desc":"Crafting inputs to avoid detection or bypass security mechanisms in AI-based systems."},{"id":"T2.5","name":"Extraction attacks","desc":"Reverse-engineering AI models to reconstruct sensitive data or proprietary algorithms."},{"id":"T2.6","name":"Membership Inference attacks","desc":"Identifying whether specific data points were part of the training dataset, potentially breaching privacy."},{"id":"T2.7","name":"Physical attacks","desc":"Manipulating the physical environment (e.g., stickers on stop signs) to deceive AI systems."},{"id":"T3","name":"Algorithm risks","desc":""},{"id":"T3.1","name":"Exploiting Generative AI","desc":"Using generative models to produce harmful outputs, such as deepfakes or malicious content."},{"id":"T3.2","name":"Model theft","desc":"Unauthorized duplication of proprietary AI models, leading to intellectual property loss and competitive disadvantages."},{"id":"T3.3","name":"Zero day vulnerabilities","desc":"Exploiting unknown or unpatched weaknesses in AI algorithms or their implementations."},{"id":"T4","name":"Operational risks","desc":""},{"id":"T4.1","name":"Compromise of reliability and safety of an AI system due to complex environments","desc":"Unpredictable interactions with dynamic environments causing failures."},{"id":"T4.2","name":"Responsiveness of the AI","desc":"Delays in AI system outputs during critical operations, affecting usability or safety."},{"id":"T4.3","name":"Loss of expressiveness of models","desc":"Models becoming overly simplified and unable to capture complex relationships."},{"id":"T4.4","name":"Specific failure cases","desc":"Unexpected failures under edge-case scenarios."},{"id":"T4.5","name":"Non continuous risk monitoring","desc":"Lack of real-time or ongoing risk evaluation, leading to undetected vulnerabilities or performance degradation."},{"id":"T4.6","name":"Non adequate maintenance","desc":"Lack of updates or adjustments causing models to degrade over time."},{"id":"T4.7","name":"Systems with continuous learning","desc":"AI systems that learn and adapt over time may incorporate unintended biases, security vulnerabilities, or errors due to lack of oversight."},{"id":"T5","name":"Legal - Privacy - Ethical risks-aspects","desc":""},{"id":"T5.1","name":"Fairness","desc":"Models that unintentionally or intentionally reinforce biases, leading to unequal treatment or outcomes."},{"id":"T5.2","name":"Privacy","desc":"Compromises of sensitive user data, either during data collection, processing, or sharing."},{"id":"T5.3","name":"Degree of automation and control","desc":"Excessive automation reducing human oversight, leading to unintended consequences or loss of accountability."},{"id":"T5.4","name":"Lack of transparency","desc":"Opaque decision-making processes, making AI actions hard to understand."},{"id":"T5.5","name":"Lack of traceability","desc":"Challenges in tracking data and processes used in training and deploying AI systems."},{"id":"T5.6","name":"Lack of explainability","desc":"Limited ability to explain how or why an AI model arrived at a specific decision."},{"id":"T5.7","name":"Lack of reproducibility","desc":"Difficulty replicating AI results due to inconsistencies in data, algorithms, or environments."},{"id":"T5.8","name":"High degree of transparency","desc":"Over-disclosure of model details or data potentially exposing sensitive or proprietary information."},{"id":"T5.9","name":"Data collection and surveillance","desc":"Excessive or unethical collection of personal data for AI training."},{"id":"T5.10","name":"Data misuse and unauthorised access","desc":"Exploiting or mishandling data, leading to legal and ethical breaches."},{"id":"T5.11","name":"Inference and Re-Identification risks","desc":"Deriving personally identifiable information from supposedly anonymized datasets."},{"id":"T5.12","name":"Bias-Discremination","desc":"Systematic unfairness due to flawed training data or biased algorithms."},{"id":"T5.13","name":"Lack of informed consent","desc":"Data subjects not being fully aware or agreeing to how their data is collected or used."},{"id":"T5.14","name":"Data sharing and Third-Party risks","desc":"Vulnerabilities introduced through external data sharing or partnerships."},{"id":"T5.15","name":"Deepfakes and synthetic data","desc":"Misuse of AI-generated content to deceive, manipulate, or harm."},{"id":"T5.16","name":"Autonomy and behavioral manipulation","desc":"Exploiting AI systems to unduly influence user behavior or decision-making."},{"id":"T5.17","name":"Limited information communication to stake holders","desc":"Inadequate reporting or disclosure of AI risks, limitations, or decisions to business leaders, policymakers, or regulators."},{"id":"T5.18","name":"Limited information communication to end users","desc":"Users are not provided sufficient explanations about how AI decisions are made, leading to trust and usability concerns."},{"id":"T6","name":"Technical risks","desc":""},{"id":"T6.1","name":"Technical deficiencies","desc":"General inadequacies in AI models, such as incorrect assumptions, flawed architectures, or suboptimal implementations that reduce system reliability."},{"id":"T6.2","name":"Weaknesses in the system hardware / Hardware faults","desc":"Hardware components may fail, degrade, or be insufficiently robust, affecting AI model performance."},{"id":"T6.3","name":"Hardware failures capable of causing a non-negligible shift in model output","desc":"Connected with adversarial"},{"id":"T6.4","name":"System noise capable of causing a non-negligible shift in model output (Soft errors)","desc":"Incorrectly labeled, biased, or insufficiently diverse data can lead to inaccurate or harmful AI model outputs."},{"id":"T6.5","name":"Random hardware failures","desc":"AI models may unintentionally expose personal or sensitive data, violating data protection regulations and user privacy."},{"id":"T6.6","name":"Common cause failures","desc":"Failures originating from a single underlying issue, impacting multiple parts of the AI system simultaneously."},{"id":"T6.7","name":"Systematic failures","desc":"Consistent and repeatable errors in AI systems due to flaws in design, implementation, or training methodologies."},{"id":"T6.8","name":"Time-related programme errors (race conditions, deadlocks, heisenbugs)","desc":"Failure to meet legal, regulatory, or ethical guidelines, leading to fines, reputational damage, or operational restrictions."},{"id":"T6.9","name":"Use of technologies with a lower level of maturity","desc":"Adoption of AI systems that rely on emerging or unproven technologies, leading to unexpected failures or security risks."},{"id":"T7","name":"Human variables","desc":""},{"id":"T7.1","name":"Absence of a critic","desc":"The lack of human oversight or critique, which could otherwise identify and correct flaws."},{"id":"T7.2","name":"Presence of a critic","desc":"Dependence on human intervention to identify and correct AI errors."},{"id":"T7.3","name":"Reaction times","desc":"Delayed human responses in critical AI failure scenarios."},{"id":"T7.4","name":"Understanding","desc":"Insufficient understanding of AI systems by users or developers leading to misuse or poor decision-making."},{"id":"T7.5","name":"Lack of experience","desc":"Inexperienced personnel causing errors in deploying or managing AI systems"},{"id":"T8","name":"Regulatory risks","desc":""},{"id":"T8.1","name":"Non compliance with data privacy laws","desc":"Violations of laws such as GDPR, CCPA, or similar regulations."},{"id":"T8.2","name":"Non compliance with AI-specifi regulations such as AI Act","desc":"Failure to meet legal requirements designed for AI deployment."},{"id":"T8.3","name":"Infringements of Intellectual Property and Copyright","desc":"Use of copyrighted material in training datasets or unauthorized duplication of AI models."},{"id":"T8.4","name":"Ethics and Human Rights violations","desc":"Breaches of ethical principles or fundamental rights due to AI system misuse."},{"id":"T8.5","name":"Non compliance with sector-specific regulations","desc":"Violations of rules specific to industries such as healthcare, finance, or transportation"},{"id":"T8.6","name":"Liability risk","desc":"Determining responsibility for AI-driven errors or damages can be legally complex and pose financial risks."},{"id":"T8.7","name":"Economic risk","desc":"AI-driven disruptions (e.g., automation, job loss, market volatility) can have negative economic impacts."}],"controls":[{"id":"C1","name":"Limit Public Release of Information","desc":"Limit the public release of technical information about the machine learning stack used in an organization's products or services. Technical knowledge of how machine learning is used can be leveraged by adversaries to perform targeting and tailor attacks to the target system. Additionally, consider limiting the release of organizational information - including physical locations, researcher names, and department structures - from which technical details such as machine learning techniques, model architectures, or datasets may be inferred.","type":"Preventive","assetType":"Data, Environment/Tools","cost":null},{"id":"C2","name":"Limit Model Artifact Release","desc":"Limit public release of technical project details including data, algorithms, model architectures, and model checkpoints that are used in production, or that are representative of those used in production.","type":"Preventive","assetType":"Models, Artefacts","cost":null},{"id":"C3","name":"Passive ML Output Obfuscation","desc":"Decreasing the fidelity of model outputs provided to the end user can reduce an adversaries ability to extract information about the model and optimize attacks for the model.","type":"Preventive","assetType":"Models","cost":null},{"id":"C4","name":"Model Hardening","desc":"Use techniques to make machine learning models robust to adversarial inputs such as adversarial training or network distillation.","type":"Preventive/Corrective","assetType":"Models","cost":null},{"id":"C5","name":"Restrict Number of ML Model Queries","desc":"Limit the total number and rate of queries a user can perform.","type":"Preventive","assetType":"Processes","cost":null},{"id":"C6","name":"Control Access to ML Models and Data at Rest","desc":"Establish access controls on internal model registries and limit internal access to production models. Limit access to training data only to approved users.","type":"Preventive","assetType":"Data, Models","cost":null},{"id":"C7","name":"Use Ensemble Methods","desc":"Use an ensemble of models for inference to increase robustness to adversarial inputs. Some attacks may effectively evade one model or model family but be ineffective against others.","type":"Preventive","assetType":"Models","cost":null},{"id":"C8","name":"Sanitize Training Data","desc":"Detect and remove or remediate poisoned training data. Training data should be sanitized prior to model training and recurrently for an active learning model. Implement a filter to limit ingested training data. Establish a content policy that would remove unwanted content such as certain explicit or offensive language from being used.","type":"Preventive/Corrective","assetType":"Data","cost":null},{"id":"C9","name":"Validate ML Model","desc":"Validate that machine learning models perform as intended by testing for backdoor triggers or adversarial bias. Monitor model for concept drift and training data drift, which may indicate data tampering and poisoning.","type":"Detective/Corrective","assetType":"Models","cost":null},{"id":"C10","name":"Use Multi-Modal Sensors","desc":"Incorporate multiple sensors to integrate varying perspectives and modalities to avoid a single point of failure susceptible to physical attacks.","type":"Preventive/Corrective","assetType":"Environment/Tools","cost":null},{"id":"C11","name":"Input Restoration","desc":"Preprocess all inference data to nullify or reverse potential adversarial perturbations.","type":"Preventive/Corrective","assetType":"Models, Processes","cost":null},{"id":"C12","name":"Restrict Library Loading","desc":"Prevent abuse of library loading mechanisms in the operating system and software to load untrusted code by configuring appropriate library loading mechanisms and investigating potential vulnerable software. File formats such as pickle files that are commonly used to store machine learning models can contain exploits that allow for loading of malicious libraries.","type":"Preventive/Corrective","assetType":"Environment/Tools","cost":null},{"id":"C13","name":"Encrypt Sensitive Information","desc":"Encrypt sensitive data such as ML models to protect against adversaries attempting to access sensitive data.","type":"Preventive","assetType":"Data, Models","cost":null},{"id":"C14","name":"Code Signing","desc":"Enforce binary and application integrity with digital signature verification to prevent untrusted code from executing. Adversaries can embed malicious code in ML software or models. Enforcement of code signing can prevent the compromise of the machine learning supply chain and prevent execution of malicious code.","type":"Preventive","assetType":"Artefacts, Environment/Tools","cost":null},{"id":"C15","name":"Verify ML Artifacts","desc":"Verify the cryptographic checksum of all machine learning artifacts to verify that the file was not modified by an attacker.","type":"Preventive","assetType":"Artefacts, Models","cost":null},{"id":"C16","name":"Adversarial Input Detection","desc":"Detect and block adversarial inputs or atypical queries that deviate from known benign behavior, exhibit behavior patterns observed in previous attacks or that come from potentially malicious IPs. Incorporate adversarial detection algorithms into the ML system prior to the ML model.","type":"Preventive/Detective","assetType":"Processes, Models","cost":null},{"id":"C17","name":"Vulnerability Scanning","desc":"Vulnerability scanning is used to find potentially exploitable software vulnerabilities to remediate them. File formats such as pickle files that are commonly used to store machine learning models can contain exploits that allow for arbitrary code execution. Both model artifacts and downstream products produced by models should be scanned for known vulnerabilities.","type":"Detective","assetType":"Processes, Environment/Tools","cost":null},{"id":"C18","name":"Model Distribution Methods","desc":"Deploying ML models to edge devices can increase the attack surface of the system. Consider serving models in the cloud to reduce the level of access the adversary has to the model. Also consider computing features in the cloud to prevent gray-box attacks, where an adversary has access to the model preprocessing methods.","type":"Preventive/Corrective","assetType":"Models, Environment/Tools","cost":null},{"id":"C19","name":"User Training","desc":"Educate ML model developers on secure coding practices and ML vulnerabilities.","type":"Preventive","assetType":"Actors/Stakeholders","cost":null},{"id":"C20","name":"Control Access to ML Models and Data in Production","desc":"Require users to verify their identities before accessing a production model. Require authentication for API endpoints and monitor production model queries to ensure compliance with usage policies and to prevent model misuse.","type":"Preventive","assetType":"Data, Models","cost":null},{"id":"C21","name":"Generative AI Guardrails","desc":"Guardrails are safety controls that are placed between a generative AI model and the output shared with the user to prevent undesired inputs and outputs. Guardrails can take the form of validators such as filters, rule-based logic, or regular expressions, as well as AI-based approaches, such as classifiers and utilizing LLMs, or named entity recognition (NER) to evaluate the safety of the prompt or response. Domain specific methods can be employed to reduce risks in a variety of areas such as etiquette, brand damage, jailbreaking, false information, code exploits, SQL injections, and data leakage.","type":"Preventive","assetType":"Artefacts, Processes","cost":null},{"id":"C22","name":"Generative AI Guidelines","desc":"Guidelines are safety controls that are placed between user-provided input and a generative AI model to help direct the model to produce desired outputs and prevent undesired outputs. Guidelines can be implemented as instructions appended to all user prompts or as part of the instructions in the system prompt. They can define the goal(s), role, and voice of the system, as well as outline safety and security parameters.","type":"Preventive","assetType":"Artefacts, Processes","cost":null},{"id":"C23","name":"Generative AI Model Alignment","desc":"When training or fine-tuning a generative AI model it is important to utilize techniques that improve model alignment with safety, security, and content policies. The fine-tuning process can potentially remove built-in safety mechanisms in a generative AI model, but utilizing techniques such as Supervised Fine-Tuning, Reinforcement Learning from Human Feedback or AI Feedback, and Targeted Safety Context Distillation can improve the safety and alignment of the model.","type":"Preventive","assetType":"Models, Processes","cost":null},{"id":"C24","name":"AI Telemetry Logging","desc":"Implement logging of inputs and outputs of deployed AI models. Monitoring logs can help to detect security threats and mitigate impacts.","type":"Preventive/Detective","assetType":"Processes, Environment/Tools","cost":null},{"id":"C25","name":"Maintain AI Dataset Provenance","desc":"Maintain a detailed history of datasets used for AI applications. The history should include information about the dataset's source as well as a complete record of any modifications.","type":"Preventive","assetType":"Data, Artefacts","cost":null},{"id":"C26","name":"Establish and Maintain an AI Vulnerability Management Process","desc":"Document and update AI-specific vulnerability management processes, including model, data, and infrastructure security.","type":"Preventive/Corrective","assetType":"Processes","cost":null},{"id":"C27","name":"Perform Automated Security Updates for AI Models and Pipelines","desc":"Ensure AI models and APIs are updated regularly to mitigate security risks.","type":"Preventive/Corrective","assetType":"Processes, Models","cost":null},{"id":"C28","name":"Perform Automated Vulnerability Scans of Internal AI Assets","desc":"Scan internal AI assets (data storage, training, inference servers) for vulnerabilities quarterly or more frequently.","type":"Detective","assetType":"Processes, Environment/Tools","cost":null},{"id":"C29","name":"Establish and Maintain an AI Security Awareness Program","desc":"Train employees on secure AI data handling, adversarial threats, and ethical AI considerations.","type":"Preventive","assetType":"Actors/Stakeholders","cost":null},{"id":"C30","name":"AI Security and Data Handling Training","desc":"Train employees on best practices for AI data management, recognizing security incidents, and identifying update failures to strengthen overall AI system security.","type":"Preventive","assetType":"Actors/Stakeholders, Data","cost":null},{"id":"C31","name":"Establish and Maintain a Secure AI Development and Design","desc":"Implement a secure AI development lifecycle by following best coding practices, using trusted and verified frameworks and datasets, and applying security principles like least privilege access and input validation to mitigate risks in training, inference, and data privacy.","type":"Preventive/Corrective","assetType":"Processes","cost":null},{"id":"C32","name":"Conduct AI Penetration Testing","desc":"Test AI models against adversarial attacks to identify weaknesses and improve security.","type":"Preventive/Corrective","assetType":"Processes, Environment/Tools","cost":null},{"id":"C33","name":"Conduct AI Threat Modeling","desc":"Analyze AI applications for potential threats such as data poisoning, model theft, and adversarial manipulation.","type":"Preventive","assetType":"Processes, Environment/Tools","cost":null},{"id":"C34","name":"Risk Measurement","desc":"Establish policies and procedures that address continual improvement processes for GAI risk measurement. Address general risks associated with a lack of explainability and transparency in GAI systems by using ample documentation and techniques such as: application of gradient-based attributions, occlusion/term reduction, counterfactual prompts and prompt engineering, and analysis of embeddings; Assess and update risk measurement approaches at regular cadences.","type":"Preventive/Corrective","assetType":"Data/Models","cost":null},{"id":"C35","name":"Team Training","desc":"Establish processes to verify the AI Actors conducting GAI incident response tasks demonstrate and maintain the appropriate skills and training.","type":"Preventive","assetType":"Actors/Stakeholders","cost":null},{"id":"C36","name":"Crisis Handling Plan","desc":"Establish incident response plans for third-party GAI technologies: Align incident response plans with impacts enumerated in MAP 5.1; Communicate third-party GAI incident response plans to all relevant AI Actors; Define ownership of GAI incident response functions; Rehearse third-party GAI incident response plans at a regular cadence; Improve incident response plans based on retrospective learning; Review incident response plans for alignment with relevant breach reporting, data protection, data privacy, or other laws.","type":"Corrective","assetType":"Processes/Environment/Tools","cost":null},{"id":"C37","name":"Role Clarity","desc":"Conduct joint educational activities and events in collaboration with third parties to promote best practices for managing GAI risks.","type":"Preventive","assetType":"Actors/Stakeholders","cost":null},{"id":"C38","name":"AI Awareness Training","desc":"Allocate time and resources for outreach, feedback, and recourse processes in GAI system development.","type":"Corrective","assetType":"Environment/Tools","cost":null},{"id":"C39","name":"AI Training Programs","desc":"Include relevant AI Actors in the GAI system risk identification process.","type":"Preventive/Corrective","assetType":"Processes","cost":null},{"id":"C40","name":"Oversight Mechanisms","desc":"Consider adjustment of organizational roles and components across lifecycle stages of large or complex GAI systems, including: Test and evaluation, validation, and red-teaming of GAI systems; GAI content moderation; GAI system development and engineering; Increased accessibility of GAI tools, interfaces, and systems, Incident response and containment.","type":"Corrective","assetType":"Artefacts, Environment/Tools","cost":null},{"id":"C41","name":"Privacy Compliance","desc":"Align GAI development and use with applicable laws and regulations, including those related to data privacy, copyright and intellectual property law.","type":"Preventive","assetType":"Data","cost":null},{"id":"C42","name":"Regulatory Alignment","desc":"Consider the following factors when updating or defining risk tiers for GAI: Abuses and impacts to information integrity; Dependencies between GAI and other IT or data systems; Harm to fundamental rights or public safety; Presentation of obscene, objectionable, offensive, discriminatory, invalid or untruthful output; Psychological impacts to humans (e.g., anthropomorphization, algorithmic aversion, emotional entanglement); Possibility for malicious use; Whether the system introduces significant new security vulnerabilities; Anticipated system impact on some groups compared to others; Unreliable decision making capabilities, validity, adaptability, and variability of GAI system performance over time.","type":"Preventive","assetType":"Data, Models, Processes, Actors/Stakeholders","cost":null},{"id":"C43","name":"IP Protection","desc":"Establish terms of use and terms of service for GAI systems.","type":"Preventive","assetType":"Models","cost":null},{"id":"C44","name":"Vendor Due Diligence","desc":"Update and integrate due diligence processes for GAI acquisition and procurement vendor assessments to include intellectual property, data privacy, security, and other risks. For example, update processes to: Address solutions that may rely on embedded GAI technologies; Address ongoing monitoring, assessments, and alerting, dynamic risk assessments, and real-time reporting tools for monitoring third-party GAI risks; Consider policy adjustments across GAI modeling libraries, tools and APIs, fine-tuned models, and embedded tools; Assess GAI vendors, open-source or proprietary GAI tools, or GAI service providers against incident or vulnerability databases.","type":"Preventive/Corrective","assetType":"Environment/Tools","cost":null},{"id":"C45","name":"Ethical AI Policies","desc":"Obtain input from stakeholder communities to identify unacceptable use, in accordance with activities in the AI RMF Map function.","type":"Preventive","assetType":"Artefacts","cost":null},{"id":"C46","name":"Data Quality Assurance","desc":"Ensure the reliability, completeness, and consistency of training and inference data by implementing validation mechanisms.","type":"Detective","assetType":"Data,Processes","cost":null},{"id":"C47","name":"Continuous Model Monitoring","desc":"Implement real-time surveillance of model performance, drift, and anomalies to detect deviations and security threats.","type":"Detective","assetType":"Models,Stakeholders,Processes","cost":null},{"id":"C48","name":"Secure Input Validation","desc":"Apply strict validation techniques to prevent adversarial or malformed inputs from compromising AI models.","type":"Detective","assetType":"Data, Environment/Tools","cost":null},{"id":"C49","name":"Bias Detection & Mitigation","desc":"Identify and reduce biases in AI models to promote fairness and prevent discriminatory outcomes.","type":"Detective","assetType":"Data,Stakeholders,Processes","cost":null},{"id":"C50","name":"Model Watermarking","desc":"Embed unique, invisible markers in AI models to trace unauthorized usage or leaks.","type":"Detective/Preventive","assetType":"Models,Artefacts","cost":null},{"id":"C51","name":"Model Encryption","desc":"Use cryptographic techniques to secure AI models against unauthorized access or tampering.","type":"Detective/Preventive","assetType":"Models","cost":null},{"id":"C52","name":"Secure AI Infrastructure","desc":"Ensure end-to-end security for AI systems, including hardware, software, and cloud environments.","type":"Detective/Preventive","assetType":"Artefacts,Environment/Tools","cost":null}],"assetThreat":[["A1","T8.1"],["A1","T8.4"],["A1","T8.7"],["A1.1","T1.1"],["A1.1","T1.9"],["A1.1","T5.9"],["A1.2","T1.4"],["A1.2","T1.5"],["A1.2","T1.6"],["A1.2","T1.7"],["A1.2","T1.8"],["A1.2","T1.9"],["A1.3","T1.2"],["A1.3","T1.4"],["A1.3","T1.9"],["A1.3","T2.2"],["A1.3","T5.1"],["A1.3","T5.10"],["A1.3","T5.12"],["A1.3","T5.13"],["A1.3","T5.14"],["A1.3","T5.2"],["A1.3","T5.9"],["A1.3","T8.1"],["A1.3","T8.4"],["A1.3","T8.5"],["A1.4","T2.2"],["A1.4","T5.1"],["A1.4","T5.12"],["A1.4","T5.2"],["A1.4","T8.1"],["A1.4","T8.4"],["A1.5","T1.3"],["A1.6","T1.3"],["A1.6","T2.3"],["A1.6","T2.6"],["A1.6","T5.10"],["A1.6","T5.11"],["A1.6","T5.13"],["A1.6","T5.14"],["A1.6","T5.2"],["A1.6","T5.8"],["A1.6","T5.9"],["A1.6","T8.1"],["A2","T8.1"],["A2","T8.2"],["A2","T8.3"],["A2","T8.4"],["A2","T8.5"],["A2","T8.7"],["A2.1","T8.3"],["A2.2","T1.1"],["A2.2","T1.2"],["A2.2","T1.3"],["A2.2","T1.4"],["A2.2","T1.5"],["A2.2","T1.6"],["A2.2","T1.7"],["A2.2","T1.8"],["A2.2","T1.9"],["A2.2","T2.1"],["A2.2","T2.2"],["A2.2","T2.3"],["A2.2","T2.4"],["A2.2","T2.5"],["A2.2","T2.6"],["A2.2","T3.2"],["A2.2","T4.2"],["A2.2","T5.1"],["A2.2","T5.11"],["A2.2","T5.12"],["A2.2","T5.16"],["A2.2","T5.3"],["A2.2","T5.4"],["A2.2","T5.6"],["A2.2","T5.7"],["A2.2","T6.1"],["A2.2","T6.4"],["A2.2","T6.6"],["A2.2","T6.7"],["A2.2","T8.2"],["A2.2","T8.4"],["A2.2","T8.6"],["A2.2","T8.7"],["A2.3","T2.1"],["A2.3","T2.3"],["A2.3","T2.5"],["A2.3","T2.6"],["A2.3","T6.7"],["A2.4","T5.7"],["A2.5","T1.1"],["A2.5","T1.3"],["A2.5","T1.8"],["A2.5","T1.9"],["A2.5","T2.5"],["A2.5","T3.1"],["A2.5","T3.2"],["A2.5","T5.15"],["A2.5","T8.3"],["A2.6","T3.1"],["A2.6","T3.3"],["A2.6","T6.1"],["A2.6","T6.9"],["A3","T8.4"],["A3","T8.7"],["A3.1","T5.1"],["A3.1","T5.12"],["A3.1","T5.14"],["A3.1","T5.4"],["A3.1","T5.5"],["A3.1","T5.8"],["A3.1","T8.1"],["A3.1","T8.2"],["A3.1","T8.3"],["A3.1","T8.5"],["A4","T8.4"],["A4","T8.6"],["A4","T8.7"],["A4.1","T5.10"],["A4.1","T5.18"],["A4.2","T5.17"],["A4.2","T7.1"],["A4.2","T7.2"],["A4.2","T7.3"],["A4.2","T7.4"],["A4.2","T7.5"],["A4.3","T1.1"],["A4.3","T1.2"],["A4.3","T1.3"],["A4.3","T1.4"],["A4.3","T1.9"],["A4.3","T7.1"],["A4.3","T7.4"],["A4.3","T7.5"],["A4.4","T5.10"],["A4.4","T5.14"],["A4.5","T1.5"],["A4.5","T1.6"],["A4.5","T1.7"],["A4.5","T1.8"],["A4.5","T5.17"],["A4.5","T7.3"],["A4.5","T7.5"],["A4.6","T5.13"],["A4.6","T5.18"],["A4.6","T7.1"],["A4.6","T7.2"],["A4.6","T8.1"],["A4.6","T8.2"],["A4.6","T8.4"],["A4.6","T8.5"],["A5","T8.3"],["A5","T8.4"],["A5","T8.5"],["A5","T8.6"],["A5","T8.7"],["A5.1","T1.1"],["A5.1","T1.2"],["A5.1","T1.3"],["A5.1","T1.4"],["A5.1","T1.9"],["A5.2","T1.1"],["A5.2","T1.2"],["A5.2","T1.3"],["A5.2","T1.4"],["A5.2","T1.9"],["A5.3","T1.1"],["A5.3","T1.2"],["A5.3","T1.3"],["A5.3","T1.4"],["A5.3","T1.9"],["A5.3","T5.2"],["A5.3","T5.9"],["A5.4","T1.4"],["A5.4","T1.5"],["A5.4","T1.6"],["A5.4","T1.7"],["A5.4","T1.8"],["A5.4","T5.15"],["A5.5","T5.1"],["A5.6","T1.3"],["A5.6","T1.5"],["A5.6","T1.6"],["A5.6","T1.7"],["A5.6","T1.8"],["A5.6","T7.4"],["A5.7","T1.3"],["A5.7","T1.5"],["A5.7","T1.6"],["A5.7","T1.7"],["A5.7","T1.8"],["A5.8","T1.3"],["A5.8","T1.4"],["A5.8","T1.5"],["A5.8","T1.6"],["A5.8","T1.7"],["A5.8","T1.8"],["A5.8","T4.1"],["A5.8","T4.5"],["A5.8","T5.17"],["A5.8","T5.18"],["A5.8","T5.4"],["A5.8","T5.5"],["A5.8","T5.8"],["A5.8","T6.7"],["A5.8","T6.8"],["A5.8","T7.3"],["A5.8","T8.6"],["A5.9","T1.3"],["A5.9","T1.5"],["A5.9","T1.6"],["A5.9","T1.7"],["A5.9","T1.8"],["A5.9","T5.5"],["A5.9","T5.7"],["A5.9","T8.6"],["A6","T8.1"],["A6","T8.2"],["A6","T8.3"],["A6","T8.4"],["A6","T8.5"],["A6","T8.7"],["A6.1","T3.3"],["A6.2","T3.3"],["A6.2","T5.10"],["A6.2","T5.15"],["A6.2","T5.3"],["A6.2","T6.1"],["A6.2","T6.6"],["A6.2","T6.9"],["A6.2","T8.7"],["A6.3","T1.5"],["A6.3","T1.6"],["A6.3","T1.7"],["A6.3","T1.8"],["A6.3","T5.6"],["A6.5","T2.7"],["A6.5","T4.1"],["A6.5","T6.2"],["A6.5","T6.3"],["A6.5","T6.4"],["A6.5","T6.5"],["A6.5","T6.6"],["A6.5","T6.8"],["A6.5","T6.9"],["A6.6","T2.1"],["A6.6","T2.4"],["A6.6","T2.7"],["A6.6","T3.3"],["A6.6","T4.2"],["A6.6","T5.11"],["A6.6","T5.16"],["A6.6","T5.3"],["A6.6","T5.6"],["A6.6","T6.2"],["A6.6","T6.3"],["A6.6","T6.4"],["A6.6","T6.5"],["A6.6","T8.7"]],"threatControl":[["T1.1","C11"],["T1.1","C16"],["T1.1","C32"],["T1.1","C4"],["T1.1","C48"],["T1.1","C7"],["T1.2","C25"],["T1.2","C33"],["T1.2","C46"],["T1.2","C8"],["T1.2","C9"],["T1.3","C42"],["T1.3","C43"],["T1.3","C6"],["T1.4","C13"],["T1.4","C15"],["T1.4","C25"],["T1.4","C34"],["T1.4","C46"],["T1.4","C8"],["T1.5","C24"],["T1.5","C27"],["T1.5","C34"],["T1.5","C47"],["T1.5","C9"],["T1.6","C24"],["T1.6","C27"],["T1.6","C34"],["T1.6","C47"],["T1.6","C9"],["T1.7","C24"],["T1.7","C27"],["T1.7","C34"],["T1.7","C47"],["T1.7","C9"],["T1.8","C24"],["T1.8","C27"],["T1.8","C34"],["T1.8","C47"],["T1.8","C9"],["T1.9","C33"],["T1.9","C7"],["T1.9","C8"],["T2.1","C10"],["T2.1","C16"],["T2.1","C32"],["T2.1","C4"],["T2.1","C48"],["T2.1","C7"],["T2.2","C25"],["T2.2","C33"],["T2.2","C8"],["T2.2","C9"],["T2.3","C1"],["T2.3","C2"],["T2.3","C3"],["T2.3","C41"],["T2.3","C43"],["T2.3","C5"],["T2.4","C16"],["T2.4","C32"],["T2.4","C4"],["T2.4","C7"],["T2.5","C1"],["T2.5","C2"],["T2.5","C20"],["T2.5","C43"],["T2.5","C5"],["T2.5","C51"],["T2.6","C2"],["T2.6","C43"],["T2.6","C5"],["T2.7","C10"],["T2.7","C11"],["T2.7","C4"],["T3.1","C21"],["T3.1","C22"],["T3.1","C23"],["T3.1","C7"],["T3.2","C14"],["T3.2","C18"],["T3.2","C2"],["T3.2","C43"],["T3.2","C50"],["T3.2","C51"],["T3.3","C17"],["T3.3","C26"],["T3.3","C28"],["T4.1","C10"],["T4.1","C24"],["T4.1","C31"],["T4.1","C34"],["T4.1","C40"],["T4.1","C47"],["T4.1","C9"],["T4.2","C24"],["T4.2","C31"],["T4.2","C34"],["T4.2","C40"],["T4.2","C47"],["T4.2","C9"],["T4.3","C24"],["T4.3","C31"],["T4.3","C34"],["T4.3","C40"],["T4.3","C47"],["T4.3","C9"],["T4.4","C24"],["T4.4","C31"],["T4.4","C34"],["T4.4","C36"],["T4.4","C40"],["T4.4","C47"],["T4.4","C9"],["T4.5","C24"],["T4.5","C31"],["T4.5","C34"],["T4.5","C40"],["T4.5","C47"],["T4.5","C9"],["T4.6","C24"],["T4.6","C31"],["T4.6","C34"],["T4.6","C40"],["T4.6","C47"],["T4.6","C9"],["T4.7","C24"],["T4.7","C31"],["T4.7","C34"],["T4.7","C40"],["T4.7","C47"],["T4.7","C9"],["T5.1","C19"],["T5.1","C42"],["T5.1","C45"],["T5.1","C49"],["T5.10","C20"],["T5.10","C43"],["T5.10","C44"],["T5.10","C45"],["T5.11","C43"],["T5.11","C44"],["T5.11","C45"],["T5.12","C43"],["T5.12","C44"],["T5.12","C45"],["T5.13","C43"],["T5.13","C44"],["T5.13","C45"],["T5.14","C43"],["T5.14","C44"],["T5.14","C45"],["T5.15","C43"],["T5.15","C44"],["T5.15","C45"],["T5.16","C43"],["T5.16","C44"],["T5.16","C45"],["T5.17","C43"],["T5.17","C44"],["T5.17","C45"],["T5.18","C43"],["T5.18","C44"],["T5.18","C45"],["T5.2","C19"],["T5.2","C30"],["T5.2","C42"],["T5.2","C45"],["T5.2","C49"],["T5.3","C19"],["T5.3","C42"],["T5.3","C45"],["T5.3","C49"],["T5.4","C43"],["T5.4","C45"],["T5.5","C43"],["T5.5","C45"],["T5.6","C43"],["T5.6","C45"],["T5.7","C43"],["T5.7","C44"],["T5.8","C43"],["T5.8","C44"],["T5.9","C43"],["T5.9","C44"],["T6.1","C12"],["T6.1","C14"],["T6.1","C17"],["T6.1","C52"],["T6.2","C10"],["T6.2","C12"],["T6.2","C14"],["T6.2","C17"],["T6.2","C52"],["T6.3","C10"],["T6.3","C12"],["T6.3","C14"],["T6.3","C17"],["T6.3","C52"],["T6.4","C10"],["T6.4","C12"],["T6.4","C14"],["T6.4","C17"],["T6.4","C52"],["T6.5","C12"],["T6.5","C14"],["T6.5","C17"],["T6.5","C52"],["T6.6","C10"],["T6.6","C12"],["T6.6","C14"],["T6.6","C17"],["T6.6","C52"],["T6.7","C12"],["T6.7","C14"],["T6.7","C17"],["T6.7","C52"],["T6.8","C12"],["T6.8","C14"],["T6.8","C17"],["T6.8","C52"],["T6.9","C12"],["T6.9","C14"],["T6.9","C17"],["T6.9","C52"],["T7.1","C19"],["T7.1","C29"],["T7.1","C35"],["T7.1","C37"],["T7.1","C38"],["T7.1","C45"],["T7.2","C19"],["T7.2","C29"],["T7.2","C35"],["T7.2","C37"],["T7.2","C38"],["T7.2","C45"],["T7.3","C19"],["T7.3","C29"],["T7.3","C35"],["T7.3","C37"],["T7.3","C38"],["T7.3","C45"],["T7.4","C19"],["T7.4","C29"],["T7.4","C35"],["T7.4","C37"],["T7.4","C38"],["T7.4","C45"],["T7.5","C19"],["T7.5","C29"],["T7.5","C35"],["T7.5","C37"],["T7.5","C38"],["T7.5","C39"],["T7.5","C45"],["T8.1","C43"],["T8.1","C44"],["T8.1","C45"],["T8.2","C43"],["T8.2","C44"],["T8.2","C45"],["T8.3","C43"],["T8.3","C44"],["T8.3","C45"],["T8.4","C43"],["T8.4","C44"],["T8.4","C45"],["T8.5","C43"],["T8.5","C44"],["T8.5","C45"],["T8.6","C43"],["T8.6","C44"],["T8.6","C45"],["T8.7","C43"],["T8.7","C44"],["T8.7","C45"]],"riskId":[{"id":"T1.2","name":"Poisoning Attacks","assets":"Data","owner":"MLOps Lead"},{"id":"T2.3","name":"Inference Attacks","assets":"Models","owner":"Data Scientist Lead"},{"id":"T2.5","name":"Extraction Attacks","assets":"Models","owner":"MLOps Lead"},{"id":"T5.10","name":"Data misuse and unauthorised access","assets":"Data,Actors/Stakeholders","owner":"Compliance Officer"},{"id":"T5.12","name":"Bias-Discrimination","assets":"Data,Models","owner":"Data Governance Manager"},{"id":"T6.2","name":"Hardware Failures","assets":"Environment/Tools","owner":"DevOps Engineer"}],"assess":{"T1.2":{"l":3.0,"i":4.0},"T2.3":{"l":3.0,"i":4.0},"T2.5":{"l":2.0,"i":3.0},"T5.10":{"l":3.0,"i":3.0},"T5.12":{"l":3.5,"i":4.0},"T6.2":{"l":3.0,"i":3.0}},"controlAssess":[{"control":"C2","threat":"T2.5","why":"Prevents unauthorised users from accessing trained models, making it harder for adversaries to reverse-engineer or steal them.","eff":5.0},{"control":"C3","threat":"T2.3","why":"Limits the ability of attackers to extract sensitive data by obfuscating model responses","eff":9.0},{"control":"C8","threat":"T1.2","why":"Ensures that training data is cleaned, filtered, and verified before use, reducing the risk of injecting malicious samples.","eff":6.0},{"control":"C20","threat":"T5.10","why":"Enforces strict role-based access control (RBAC) and authentication, preventing unauthorised access and misuse of sensitive AI assets.","eff":9.0},{"control":"C49","threat":"T5.12","why":"Uses fairness-aware algorithms and bias auditing tools to detect and reduce bias in AI models.","eff":7.0},{"control":"C52","threat":"T6.2","why":"Implements redundancy, failover systems, and hardware security measures to ensure AI systems remain operational despite hardware faults.","eff":6.0}],"treatment":[{"threat":"T2.5","control":"C2","cost":5000.0,"eff":5.0,"sel":1},{"threat":"T2.3","control":"C3","cost":19000.0,"eff":9.0,"sel":1},{"threat":"T5.10","control":"C20","cost":10000.0,"eff":6.0,"sel":1},{"threat":"T1.2","control":"C8","cost":14000.0,"eff":9.0,"sel":1},{"threat":"T6.2","control":"C52","cost":25000.0,"eff":7.0,"sel":0},{"threat":"T5.12","control":"C49","cost":46000.0,"eff":6.0,"sel":0}],"budget":50000.0};
+
+const VIEWS = [
+  { grp: "Libraries" },
+  { id: "assets", label: "Assets" },
+  { id: "threats", label: "Threats" },
+  { id: "controls", label: "Controls" },
+  { id: "mappings", label: "Mappings" },
+  { id: "import", label: "Import CSV" },
+  { grp: "Risk process" },
+  { id: "identify", n: 1, label: "Identify" },
+  { id: "assess", n: 2, label: "Assess" },
+  { id: "evaluate", n: 3, label: "Evaluate controls" },
+  { id: "treat", n: 4, label: "Treat" },
+];
+const STORE = "aih-workbench-v1";
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const fmt = n => (Math.round(n * 10) / 10).toLocaleString("en-GB", { maximumFractionDigits: 1 });
+const eur = n => "€" + Math.round(n).toLocaleString("en-GB");
+const groupOf = id => id.split(".")[0];
+const isGroup = id => !id.includes(".");
+
+const idSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+
+/* asset and threat libraries can be replaced by CSV import; controls stay fixed */
+const LIB_STORE = "aih-library-v1";
+const workbookLib = () => JSON.parse(JSON.stringify({ assets: DATA.assets, threats: DATA.threats, assetThreat: DATA.assetThreat, threatControl: DATA.threatControl }));
+function loadLib() { try { const l = JSON.parse(localStorage.getItem(LIB_STORE)); return l && Array.isArray(l.assets) && Array.isArray(l.threats) ? l : null; } catch { return null; } }
+function saveLib() { try { localStorage.setItem(LIB_STORE, JSON.stringify(LIB)); } catch {} }
+let LIB = loadLib() || workbookLib();
+const control = Object.fromEntries(DATA.controls.map(c => [c.id, c]));
+let asset, threat, assetsOfThreat, threatsOfAsset, controlsOfThreat, threatsOfControl;
+function reindex() {
+  asset = Object.fromEntries(LIB.assets.map(a => [a.id, a]));
+  threat = Object.fromEntries(LIB.threats.map(t => [t.id, t]));
+  assetsOfThreat = {}; threatsOfAsset = {}; controlsOfThreat = {}; threatsOfControl = {};
+  for (const [a, t] of LIB.assetThreat) { (assetsOfThreat[t] ||= []).push(a); (threatsOfAsset[a] ||= []).push(t); }
+  for (const [t, c] of LIB.threatControl) { (controlsOfThreat[t] ||= []).push(c); (threatsOfControl[c] ||= []).push(t); }
+}
+reindex();
+
+function seed() {
+  const ca = Object.fromEntries(DATA.controlAssess.map(x => [x.threat, x]));
+  const tr = Object.fromEntries(DATA.treatment.map(x => [x.threat, x]));
+  return {
+    budget: DATA.budget,
+    objective: "eff",
+    risks: DATA.riskId.map(r => ({
+      threat: r.id, name: r.name, assets: r.assets, owner: r.owner,
+      l: DATA.assess[r.id]?.l ?? 3, i: DATA.assess[r.id]?.i ?? 3,
+      control: ca[r.id]?.control ?? "", eff: ca[r.id]?.eff ?? 5, why: ca[r.id]?.why ?? "",
+      cost: tr[r.id]?.cost ?? 0, sel: !!tr[r.id]?.sel,
+    })),
+  };
+}
+function load() { try { const s = JSON.parse(localStorage.getItem(STORE)); return s && Array.isArray(s.risks) ? s : null; } catch { return null; } }
+function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch {} }
+
+let S = load() || seed();
+const ui = { view: "assets", q: {}, open: new Set(), mx: "at", mxGroup: "T1", confirm: null, msg: null, resetting: false,
+  useFilter: "all", relevant: true,
+  tpl: "assets", tplSrc: "blank", imp: null, impMode: "merge", impDone: null, paste: "" };
+
+const score = r => r.l * r.i;
+const residual = r => Math.max(0, score(r) - score(r) * (r.eff / 10));
+const finalScore = r => r.sel ? residual(r) : score(r);
+const band = s => s >= 12 ? "Critical" : s >= 8 ? "High" : s >= 4 ? "Limited" : "Low";
+const totals = () => {
+  const t = { initial: 0, final: 0, cost: 0, sel: 0, eff: 0 };
+  for (const r of S.risks) { t.initial += score(r); t.final += finalScore(r); if (r.sel) { t.cost += r.cost; t.sel++; t.eff += r.eff; } }
+  return t;
+};
+
+/* ---------- shell ---------- */
+function renderNav() {
+  document.getElementById("nav").innerHTML = VIEWS.map(v => v.grp
+    ? `<div class="grp eyebrow">${v.grp}</div>`
+    : `<button type="button" data-view="${v.id}" ${ui.view === v.id ? 'aria-current="page"' : ""}><span class="n">${v.n ?? ""}</span>${v.label}</button>`).join("");
+  document.getElementById("top-actions").innerHTML = ui.resetting
+    ? `<span class="confirm"><span class="muted">Discard your edits and imports and reload the workbook data?</span><button class="btn danger" data-act="reset-yes">Reset</button><button class="btn" data-act="reset-no">Cancel</button></span>`
+    : `<button class="btn" data-act="reset">Reset to workbook data</button>`;
+}
+function revealActiveStep() { const n = document.getElementById("nav"), b = n.querySelector("[aria-current]"); if (b && n.scrollWidth > n.clientWidth) n.scrollLeft = b.offsetLeft - 16; }
+function renderKpis() {
+  const t = totals(), n = S.risks.length;
+  const pct = t.initial ? Math.round((1 - t.final / t.initial) * 100) : 0;
+  const used = S.budget ? Math.min(100, t.cost / S.budget * 100) : 0;
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi"><span class="eyebrow">Risks in register</span><span class="v">${n}</span><span class="s">${S.risks.filter(r => band(score(r)) === "Critical").length} rated critical before treatment</span></div>
+    <div class="kpi"><span class="eyebrow">Total risk score</span><span class="v">${fmt(t.initial)} <small>→ ${fmt(t.final)}</small></span><span class="s">${pct}% reduction after treatment</span></div>
+    <div class="kpi"><span class="eyebrow">Control spend</span><span class="v">${eur(t.cost)}</span><span class="s">of ${eur(S.budget)} budget</span><div class="meter ${t.cost > S.budget ? "over" : ""}"><i style="width:${used}%"></i></div></div>
+    <div class="kpi"><span class="eyebrow">Controls selected</span><span class="v">${t.sel} <small>of ${n}</small></span><span class="s">${n - t.sel} risk${n - t.sel === 1 ? "" : "s"} accepted</span></div>`;
+}
+function render() {
+  const a = document.activeElement, fid = a && a.id, sel = a && "selectionStart" in a ? [a.selectionStart, a.selectionEnd] : null;
+  renderNav(); revealActiveStep(); renderKpis();
+  document.getElementById("view").innerHTML = views[ui.view]();
+  if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); if (sel && sel[0] != null) try { el.setSelectionRange(...sel); } catch {} } }
+}
+function go(v) { ui.view = v; ui.msg = null; ui.confirm = null; try { history.replaceState(null, "", "#" + v); } catch {} render(); window.scrollTo({ top: 0 }); }
+function toast(t) { const el = document.createElement("div"); el.className = "toast"; el.textContent = t; document.body.appendChild(el); setTimeout(() => el.remove(), 2000); }
+
+/* ---------- helpers ---------- */
+const head = (title, text, extra = "") => `<div class="vhead"><div><h2>${title}</h2><p>${text}</p></div>${extra}</div>`;
+const search = (key, ph) => `<input type="search" id="q-${key}" data-q="${key}" placeholder="${ph}" value="${esc(ui.q[key] || "")}" aria-label="${ph}">`;
+const match = (key, ...fields) => { const q = (ui.q[key] || "").trim().toLowerCase(); return !q || fields.some(f => String(f).toLowerCase().includes(q)); };
+const chip = (id, name, act) => `<button type="button" class="chip" ${act ? `data-act="${act}" data-id="${id}"` : ""}><span class="id">${id}</span>${esc(name)}</button>`;
+const inRegister = id => S.risks.some(r => r.threat === id);
+const usedAssetsOf = tid => (assetsOfThreat[tid] || []).filter(a => asset[a]?.inUse === true);
+const useCounts = list => ({ yes: list.filter(a => a.inUse === true).length, no: list.filter(a => a.inUse === false).length, unset: list.filter(a => a.inUse == null).length });
+
+/* ---------- views ---------- */
+const views = {};
+
+views.assets = () => {
+  const L = DATA.legend;
+  const legend = `<div class="panel pad"><div class="legend">
+    <div><span class="pill p-H">H</span><span>${esc(L[1].replace(/^High \(H\):\s*/, ""))}</span></div>
+    <div><span class="pill p-M">M</span><span>${esc(L[2].replace(/^Medium \(M\):\s*/, ""))}</span></div>
+    <div><span class="pill p-L">L</span><span>${esc(L[3].replace(/^Low \(L\):\s*/, ""))}</span></div>
+  </div><p class="muted" style="margin:10px 0 0;font-size:12px">Value is how important the asset is across the AI system's lifecycle. Risk exposure is the impact if it is compromised.</p></div>`;
+  const subs = LIB.assets.filter(a => !isGroup(a.id)), u = useCounts(subs);
+  const fit = a => ({ all: true, yes: a.inUse === true, no: a.inUse === false, unset: a.inUse == null })[ui.useFilter];
+  let rows = "";
+  for (const a of LIB.assets) {
+    if (isGroup(a.id)) {
+      const kids = subs.filter(x => groupOf(x.id) === a.id && fit(x) && match("assets", x.id, x.name, x.desc));
+      if (kids.length) rows += `<tr class="sec"><td colspan="7">${a.id} · ${esc(a.name)} <span class="muted" style="font-weight:400">· ${useCounts(subs.filter(x => groupOf(x.id) === a.id)).yes} in use</span></td></tr>`;
+      continue;
+    }
+    if (!fit(a) || !match("assets", a.id, a.name, a.desc)) continue;
+    const ts = (threatsOfAsset[a.id] || []).sort(idSort), open = ui.open.has(a.id), v = a.inUse === true ? "yes" : a.inUse === false ? "no" : "";
+    rows += `<tr class="click" tabindex="0" data-act="toggle" data-id="${a.id}" aria-expanded="${open}"><td class="id">${a.id}</td><td><strong>${esc(a.name)}</strong></td><td class="desc">${esc(a.desc)}</td>
+      <td><select class="use use-${v || "unset"}" id="use-${a.id}" data-use="${a.id}" aria-label="Is ${esc(a.name)} used in your organisation?"><option value="" ${v ? "" : "selected"}>Not answered</option><option value="yes" ${v === "yes" ? "selected" : ""}>Yes</option><option value="no" ${v === "no" ? "selected" : ""}>No</option></select></td>
+      <td><span class="pill p-${a.value}">${a.value}</span></td><td><span class="pill p-${a.exposure}">${a.exposure}</span></td><td class="num">${ts.length}</td></tr>`;
+    if (open) rows += `<tr class="detail"><td></td><td colspan="6"><div class="eyebrow" style="margin-bottom:6px">Threats affecting this asset</div>${ts.length ? `<div class="chips">${ts.map(t => chip(t, threat[t].name, "goto-threat")).join("")}</div>` : `<span class="muted">No threats mapped in the workbook.</span>`}</td></tr>`;
+  }
+  const f = (id, label, n) => `<button type="button" class="chip ${ui.useFilter === id ? "on" : ""}" data-act="use-filter" data-id="${id}">${label} <span class="id">${n}</span></button>`;
+  return head("Assets", `${subs.length} assets across ${LIB.assets.filter(a => isGroup(a.id)).length} groups. Mark which ones your organisation uses, here or with the assets template on the Import CSV page.`, `<div class="toolbar">${search("assets", "Search assets")}</div>`)
+    + legend
+    + `<div class="chips" role="group" aria-label="Filter by use">${f("all", "All", subs.length)}${f("yes", "In use", u.yes)}${f("no", "Not used", u.no)}${f("unset", "Not answered", u.unset)}</div>`
+    + `<div class="panel scroll"><table><thead><tr><th>ID</th><th>Asset</th><th>Description</th><th>In use</th><th>Value</th><th>Exposure</th><th class="num">Threats</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="muted">No assets match this filter.</td></tr>`}</tbody></table></div>`;
+};
+
+views.threats = () => {
+  const answered = LIB.assets.some(a => a.inUse === true);
+  const relevant = id => !ui.relevant || !answered || usedAssetsOf(id).length > 0;
+  let rows = "";
+  for (const t of LIB.threats) {
+    if (!match("threats", t.id, t.name, t.desc)) continue;
+    if (isGroup(t.id)) { if (LIB.threats.some(x => groupOf(x.id) === t.id && !isGroup(x.id) && relevant(x.id) && match("threats", x.id, x.name, x.desc))) rows += `<tr class="sec"><td colspan="6">${t.id} · ${esc(t.name)}</td></tr>`; continue; }
+    if (!relevant(t.id)) continue;
+    const as = (assetsOfThreat[t.id] || []).sort(idSort), cs = (controlsOfThreat[t.id] || []).sort(idSort), open = ui.open.has(t.id);
+    rows += `<tr class="click" tabindex="0" data-act="toggle" data-id="${t.id}" aria-expanded="${open}"><td class="id">${t.id}</td><td><strong>${esc(t.name)}</strong>${inRegister(t.id) ? ` <span class="pill strat-Mitigate">In register</span>` : ""}</td><td class="desc">${esc(t.desc)}</td>
+      <td class="num">${answered ? `${usedAssetsOf(t.id).length} <span class="muted">of ${as.length}</span>` : as.length}</td><td class="num">${cs.length}</td><td>${inRegister(t.id) ? "" : `<button class="btn small" data-act="add-risk" data-id="${t.id}">Add to register</button>`}</td></tr>`;
+    if (open) rows += `<tr class="detail"><td></td><td colspan="5"><div style="display:grid;gap:12px">
+      <div><div class="eyebrow" style="margin-bottom:6px">Affected assets</div>${as.length ? `<div class="chips">${as.map(a => chip(a, asset[a].name + (asset[a].inUse === true ? " · in use" : ""), "goto-asset")).join("")}</div>` : `<span class="muted">None mapped.</span>`}</div>
+      <div><div class="eyebrow" style="margin-bottom:6px">Mitigating controls</div>${cs.length ? `<div class="chips">${cs.map(c => chip(c, control[c].name, "goto-control")).join("")}</div>` : `<span class="muted">None mapped.</span>`}</div></div></td></tr>`;
+  }
+  return head("Threats", `${LIB.threats.filter(t => !isGroup(t.id)).length} AI threats in ${LIB.threats.filter(t => isGroup(t.id)).length} groups. Select a row to see affected assets and the controls that mitigate it.${answered ? " The Assets column counts assets your organisation uses." : ""}`,
+      `<div class="toolbar">${answered ? `<label class="inline" for="relevant"><input type="checkbox" id="relevant" data-ui="relevant" ${ui.relevant ? "checked" : ""}>Only threats to assets in use</label>` : ""}${search("threats", "Search threats")}</div>`)
+    + `<div class="panel scroll"><table><thead><tr><th>ID</th><th>Threat</th><th>Description</th><th class="num">Assets</th><th class="num">Controls</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">No threats match your search.</td></tr>`}</tbody></table></div>`;
+};
+
+views.controls = () => {
+  let rows = "";
+  for (const c of DATA.controls) {
+    if (!match("controls", c.id, c.name, c.desc, c.type, c.assetType)) continue;
+    const ts = (threatsOfControl[c.id] || []).sort(idSort), open = ui.open.has(c.id);
+    rows += `<tr class="click" tabindex="0" data-act="toggle" data-id="${c.id}" aria-expanded="${open}"><td class="id">${c.id}</td><td><strong>${esc(c.name)}</strong></td><td class="desc">${esc(c.desc)}</td>
+      <td>${esc(c.type)}</td><td>${esc(c.assetType)}</td><td class="num">${ts.length}</td></tr>`;
+    if (open) rows += `<tr class="detail"><td></td><td colspan="5"><div class="eyebrow" style="margin-bottom:6px">Threats this control mitigates</div>${ts.length ? `<div class="chips">${ts.map(t => chip(t, threat[t].name, "goto-threat")).join("")}</div>` : `<span class="muted">None mapped.</span>`}</td></tr>`;
+  }
+  return head("Controls", `${DATA.controls.length} security controls, mostly based on MITRE ATLAS mitigations. Select a row to see the threats it covers.`, `<div class="toolbar">${search("controls", "Search controls")}</div>`)
+    + `<div class="panel scroll"><table><thead><tr><th>ID</th><th>Control</th><th>Description</th><th>Type</th><th>Asset type</th><th class="num">Threats</th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="muted">No controls match your search.</td></tr>`}</tbody></table></div>`;
+};
+
+views.mappings = () => {
+  const groups = LIB.threats.filter(t => isGroup(t.id));
+  if (!groups.some(g => g.id === ui.mxGroup)) ui.mxGroup = groups[0]?.id;
+  const subs = LIB.threats.filter(t => groupOf(t.id) === ui.mxGroup && !isGroup(t.id));
+  const has = new Set((ui.mx === "at" ? LIB.assetThreat : LIB.threatControl).map(p => p.join("|")));
+  let table, key;
+  if (ui.mx === "at") {
+    let body = "";
+    for (const a of LIB.assets) {
+      if (isGroup(a.id)) { body += `<tr class="sec"><td colspan="${subs.length + 1}">${a.id} · ${esc(a.name)}</td></tr>`; continue; }
+      body += `<tr><td title="${esc(a.name)}"><span class="id">${a.id}</span> ${esc(a.name)}</td>${subs.map(t => `<td class="${has.has(a.id + "|" + t.id) ? "dot" : ""}" title="${esc(a.name)} × ${esc(t.name)}"></td>`).join("")}</tr>`;
+    }
+    table = `<table class="mx"><thead><tr><th>Asset \\ Threat</th>${subs.map(t => `<th title="${esc(t.name)}">${t.id}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
+    key = subs.map(t => `<div><span class="id">${t.id}</span> ${esc(t.name)}</div>`).join("");
+  } else {
+    const cols = DATA.controls.filter(c => subs.some(t => has.has(t.id + "|" + c.id)));
+    const body = subs.map(t => `<tr><td title="${esc(t.name)}"><span class="id">${t.id}</span> ${esc(t.name)}</td>${cols.map(c => `<td class="${has.has(t.id + "|" + c.id) ? "dot" : ""}" title="${esc(t.name)} × ${esc(c.name)}"></td>`).join("")}</tr>`).join("");
+    table = cols.length ? `<table class="mx"><thead><tr><th>Threat \\ Control</th>${cols.map(c => `<th title="${esc(c.name)}">${c.id}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>` : `<p class="muted pad">No controls mapped to this group.</p>`;
+    key = cols.map(c => `<div><span class="id">${c.id}</span> ${esc(c.name)}</div>`).join("");
+  }
+  return head("Mappings", "The workbook's two relationship matrices. A dot means the pair is linked. Pick a threat group to keep the grid readable.")
+    + `<div class="toolbar"><div class="chips" role="group" aria-label="Matrix">
+        <button type="button" class="chip ${ui.mx === "at" ? "on" : ""}" data-act="mx" data-id="at">Assets × Threats</button>
+        <button type="button" class="chip ${ui.mx === "tc" ? "on" : ""}" data-act="mx" data-id="tc">Threats × Controls</button></div></div>
+      <div class="chips" role="group" aria-label="Threat group">${groups.map(g => `<button type="button" class="chip ${ui.mxGroup === g.id ? "on" : ""}" data-act="mxg" data-id="${g.id}"><span class="id">${g.id}</span>${esc(g.name)}</button>`).join("")}</div>
+      <div class="panel scroll">${table}</div>
+      <div class="panel pad"><div class="eyebrow" style="margin-bottom:8px">Key</div><div class="key">${key}</div></div>`;
+};
+
+const riskRef = r => `<span class="id">${r.threat}</span> <strong>${esc(r.name)}</strong>`;
+const emptyRegister = `<div class="panel pad muted">The register is empty. Add risks in step 1, Identify.</div>`;
+
+views.identify = () => {
+  const avail = LIB.threats.filter(t => !isGroup(t.id) && !inRegister(t.id));
+  const groups = LIB.threats.filter(t => isGroup(t.id));
+  const opts = groups.map(g => `<optgroup label="${g.id} ${esc(g.name)}">${avail.filter(t => groupOf(t.id) === g.id).map(t => `<option value="${t.id}">${t.id} ${esc(t.name)}</option>`).join("")}</optgroup>`).join("");
+  const rows = S.risks.map((r, k) => `<tr>
+    <td class="id">${r.threat}</td>
+    <td><input class="wide" id="name-${k}" data-k="${k}" data-f="name" value="${esc(r.name)}" aria-label="Risk name"><div class="ctrl-desc">Pool entry: ${esc(threat[r.threat]?.name || "")}</div></td>
+    <td><input class="wide" id="assets-${k}" data-k="${k}" data-f="assets" value="${esc(r.assets)}" aria-label="Associated assets"></td>
+    <td><input class="wide" id="owner-${k}" data-k="${k}" data-f="owner" value="${esc(r.owner)}" placeholder="Assign an owner" aria-label="Risk owner"></td>
+    <td>${ui.confirm === k ? `<span class="confirm"><button class="btn small danger" data-act="del-yes" data-k="${k}">Remove</button><button class="btn small" data-act="del-no">Keep</button></span>` : `<button class="btn small" data-act="del" data-k="${k}">Remove</button>`}</td></tr>`).join("");
+  return head("1 · Identify risks", "Choose which threats from the pool apply to this AI system, which assets they touch, and who owns each risk.")
+    + `<div class="panel pad toolbar"><label class="inline" for="add-sel">Add a threat</label><select id="add-sel" style="max-width:100%;min-width:0;flex:1 1 280px">${opts}</select><button class="btn primary" data-act="add-from-select">Add to register</button></div>`
+    + (S.risks.length ? `<div class="panel scroll"><table><thead><tr><th>Threat ID</th><th>Risk</th><th>Associated assets</th><th>Risk owner</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : emptyRegister);
+};
+
+views.assess = () => {
+  if (!S.risks.length) return head("2 · Assess risks", "") + emptyRegister;
+  const rows = S.risks.map((r, k) => { const s = score(r), b = band(s); return `<tr>
+    <td>${riskRef(r)}</td>
+    <td><input type="number" id="l-${k}" data-k="${k}" data-f="l" min="1" max="5" step="0.5" value="${r.l}" aria-label="Likelihood"></td>
+    <td><input type="number" id="i-${k}" data-k="${k}" data-f="i" min="1" max="5" step="0.5" value="${r.i}" aria-label="Impact"></td>
+    <td class="num"><strong>${fmt(s)}</strong></td><td><span class="pill b-${b}">${b}</span></td></tr>`; }).join("");
+  const total = S.risks.reduce((a, r) => a + score(r), 0);
+  let grid = "";
+  for (let i = 5; i >= 1; i--) {
+    grid += `<div class="ax">${i}</div>`;
+    for (let l = 1; l <= 5; l++) {
+      const tags = S.risks.filter(r => Math.min(5, Math.max(1, Math.round(r.i))) === i && Math.min(5, Math.max(1, Math.round(r.l))) === l);
+      grid += `<div class="c b-${band(l * i)}" title="Likelihood ${l} × Impact ${i} = ${l * i}">${tags.map(r => `<span class="tag" title="${esc(r.name)}">${r.threat}</span>`).join("")}</div>`;
+    }
+  }
+  grid += `<div></div>${[1, 2, 3, 4, 5].map(l => `<div class="ax">${l}</div>`).join("")}`;
+  return head("2 · Assess risks", "Rate the likelihood and impact of each risk from 1 to 5. Risk score is likelihood × impact.")
+    + `<div class="assess"><div class="panel scroll"><table><thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th class="num">Score</th><th>Rating</th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="3">Total</td><td class="num">${fmt(total)}</td><td></td></tr></tfoot></table></div>
+      <div class="panel pad"><h3 style="margin-bottom:10px">Risk heat map</h3><div class="heat" role="img" aria-label="Risks plotted by likelihood and impact">${grid}</div>
+      <div class="heat-cap"><span>↑ Impact</span><span>Likelihood →</span></div>
+      <div class="legend" style="margin-top:12px;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px">
+        <div><span class="pill b-Critical">Critical</span><span class="muted">12 and above</span></div><div><span class="pill b-High">High</span><span class="muted">8 to under 12</span></div>
+        <div><span class="pill b-Limited">Limited</span><span class="muted">4 to under 8</span></div><div><span class="pill b-Low">Low</span><span class="muted">under 4</span></div></div></div></div>`;
+};
+
+views.evaluate = () => {
+  if (!S.risks.length) return head("3 · Evaluate controls", "") + emptyRegister;
+  const rows = S.risks.map((r, k) => {
+    const mapped = (controlsOfThreat[r.threat] || []).sort(idSort);
+    const other = DATA.controls.map(c => c.id).filter(c => !mapped.includes(c));
+    const o = id => `<option value="${id}" ${r.control === id ? "selected" : ""}>${id} ${esc(control[id].name)}</option>`;
+    return `<tr><td>${riskRef(r)}</td>
+      <td><select class="wide" id="ctl-${k}" data-k="${k}" data-f="control" aria-label="Control"><option value="">Choose a control</option>
+        ${mapped.length ? `<optgroup label="Mapped to this threat">${mapped.map(o).join("")}</optgroup>` : ""}<optgroup label="All other controls">${other.map(o).join("")}</optgroup></select>
+        ${r.control ? `<div class="ctrl-desc">${esc(control[r.control]?.desc || "")}${mapped.includes(r.control) || !r.control ? "" : " <strong>Not mapped to this threat in the workbook.</strong>"}</div>` : ""}</td>
+      <td><textarea id="why-${k}" data-k="${k}" data-f="why" aria-label="Why this control helps">${esc(r.why)}</textarea></td>
+      <td><input type="number" id="eff-${k}" data-k="${k}" data-f="eff" min="0" max="10" step="1" value="${r.eff}" aria-label="Effectiveness"></td></tr>`;
+  }).join("");
+  return head("3 · Evaluate controls", "Pick the control that treats each risk and rate how effective it is, from 0 (no effect) to 10 (removes the risk). Controls mapped to the threat are listed first.")
+    + `<div class="panel scroll"><table><thead><tr><th>Risk</th><th>Control</th><th>Explanation</th><th>Effectiveness</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+
+function optimise() {
+  const rs = S.risks, n = rs.length;
+  const val = r => S.objective === "eff" ? r.eff : score(r) * r.eff / 10;
+  let best = { v: -1, c: Infinity, m: 0 };
+  if (n <= 20) {
+    for (let m = 0; m < (1 << n); m++) {
+      let c = 0, v = 0;
+      for (let j = 0; j < n; j++) if (m >> j & 1) { c += rs[j].cost; v += val(rs[j]); }
+      if (c <= S.budget && (v > best.v + 1e-9 || (Math.abs(v - best.v) < 1e-9 && c < best.c))) best = { v, c, m };
+    }
+    rs.forEach((r, j) => r.sel = !!(best.m >> j & 1));
+  } else {
+    let c = 0;
+    rs.forEach(r => r.sel = false);
+    [...rs].sort((a, b) => val(b) / (b.cost || 1) - val(a) / (a.cost || 1)).forEach(r => { if (c + r.cost <= S.budget) { r.sel = true; c += r.cost; } });
+  }
+  const t = totals();
+  ui.msg = { ok: true, text: `Selected ${t.sel} of ${n} controls for ${eur(t.cost)}, within the ${eur(S.budget)} budget. Total risk drops from ${fmt(t.initial)} to ${fmt(t.final)}.` };
+}
+
+views.treat = () => {
+  if (!S.risks.length) return head("4 · Treat risks", "") + emptyRegister;
+  const t = totals();
+  const rows = S.risks.map((r, k) => { const s = score(r), f = finalScore(r); return `<tr>
+    <td>${riskRef(r)}</td>
+    <td>${r.control ? `<span class="id">${r.control}</span> ${esc(control[r.control]?.name || "")}` : `<span class="muted">No control chosen</span>`}</td>
+    <td><input type="number" id="cost-${k}" data-k="${k}" data-f="cost" min="0" step="500" value="${r.cost}" style="width:96px" aria-label="Cost in euros"></td>
+    <td class="num">${fmt(s)}</td><td class="num">${r.eff}</td><td class="num">${fmt(residual(r))}</td>
+    <td style="text-align:center"><input type="checkbox" id="sel-${k}" data-k="${k}" data-f="sel" ${r.sel ? "checked" : ""} aria-label="Apply this control"></td>
+    <td class="num"><strong>${fmt(f)}</strong> <span class="pill b-${band(f)}">${band(f)}</span></td>
+    <td><span class="pill strat-${r.sel ? "Mitigate" : "Accept"}">${r.sel ? "Mitigate" : "Accept"}</span></td></tr>`; }).join("");
+  const over = t.cost > S.budget;
+  const msg = over ? `<div class="note warn">The selected controls cost ${eur(t.cost)}, which is ${eur(t.cost - S.budget)} over budget. Deselect a control or run the optimiser.</div>`
+    : ui.msg ? `<div class="note ${ui.msg.ok ? "ok" : ""}">${esc(ui.msg.text)}</div>` : "";
+  return head("4 · Treat risks", "Decide which controls to fund. The optimiser does what Excel Solver did in the workbook: it picks the set of controls that scores best while staying within budget. Selected risks are mitigated; the rest are accepted.")
+    + `<div class="panel pad toolbar">
+        <label class="inline" for="budget">Budget (€) <input type="number" id="budget" data-g="budget" min="0" step="1000" value="${S.budget}" style="width:110px"></label>
+        <label class="inline" for="objective">Optimise for <select id="objective" data-g="objective">
+          <option value="eff" ${S.objective === "eff" ? "selected" : ""}>Highest total effectiveness (workbook method)</option>
+          <option value="red" ${S.objective === "red" ? "selected" : ""}>Largest risk-score reduction</option></select></label>
+        <button class="btn primary" data-act="optimise">Find best selection</button>
+        <button class="btn" data-act="copy">Copy table for Excel</button>
+        <button class="btn" data-act="dl-json">Download JSON</button></div>`
+    + msg
+    + `<div class="panel scroll"><table><thead><tr><th>Risk</th><th>Control</th><th>Cost (€)</th><th class="num">Initial</th><th class="num">Effect.</th><th class="num">Residual</th><th>Apply</th><th class="num">Final</th><th>Strategy</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">${eur(t.cost)}</td><td class="num">${fmt(t.initial)}</td><td class="num">${t.eff}</td><td></td><td></td><td class="num">${fmt(t.final)}</td><td></td></tr></tfoot></table></div>
+      <p class="muted" style="margin:0;font-size:12px">Residual risk = initial score × (1 − effectiveness ÷ 10). Effectiveness comes from step 3. The workbook's treatment sheet used different effectiveness values from its control assessment sheet for C8, C20, C49 and C52; this app uses one value per control so the two steps always agree.</p>`;
+};
+
+/* ---------- CSV import ---------- */
+const COLS = {
+  assets: [
+    ["asset_id", "Required", "ID such as A1.1. An ID without a dot, such as A1, is a group heading."],
+    ["asset_name", "Required", "Short name of the asset."],
+    ["description", "Optional", "What the asset is."],
+    ["value", "Required", "H, M or L. How important the asset is across the AI lifecycle. Can be blank on group headings."],
+    ["risk_exposure", "Required", "H, M or L. The impact if the asset is compromised. Can be blank on group headings."],
+    ["in_use", "Required", "YES if your organisation uses this asset, NO if it doesn't. Leave group headings blank."],
+  ],
+  threats: [
+    ["threat_id", "Required", "ID such as T1.2. An ID without a dot, such as T1, is a group heading."],
+    ["threat_name", "Required", "Short name of the threat."],
+    ["description", "Optional", "What the threat is."],
+    ["affected_assets", "Optional", "Asset IDs separated by semicolons, for example A1.3; A2.2."],
+    ["mitigating_controls", "Optional", "Control IDs (C1 to C52) separated by semicolons, for example C8; C9."],
+    ["in_register", "Optional", "YES adds the threat to the risk register as an identified risk. NO removes it. Blank leaves it as it is."],
+    ["risk_owner", "Optional", "Person or role who owns the risk."],
+    ["likelihood", "Optional", "1 to 5. Defaults to 3."],
+    ["impact", "Optional", "1 to 5. Defaults to 3."],
+    ["control", "Optional", "Control ID (C1 to C52) chosen to treat the risk. Defaults to the first mapped control."],
+    ["effectiveness", "Optional", "0 to 10. How much the control reduces the risk. Defaults to 5."],
+    ["cost", "Optional", "Cost of the control in euros, numbers only. Defaults to 0."],
+  ],
+};
+const EXAMPLE = { assets: ["A1", "A1.1", "A1.3", "A2", "A2.2", "A2.5"], threats: ["T1", "T1.2", "T2", "T2.3", "T2.5"] };
+const EXAMPLE_USE = { "A1.1": "YES", "A1.3": "YES", "A2.2": "YES", "A2.5": "NO" };
+const csvCell = v => { v = String(v ?? ""); return /[",;\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+const toCsv = rows => rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+function templateCsv(kind, src) {
+  const ex = src === "example", lib = ex ? workbookLib() : LIB;
+  const keep = ex ? new Set(EXAMPLE[kind]) : null, keepA = ex ? new Set(EXAMPLE.assets) : null;
+  const head = COLS[kind].map(c => c[0]);
+  if (kind === "assets") {
+    /* the assets template is always the full library, so people only answer in_use */
+    const use = a => ex ? EXAMPLE_USE[a.id] ?? "" : a.inUse === true ? "YES" : a.inUse === false ? "NO" : "";
+    return toCsv([head, ...lib.assets.filter(a => !keep || keep.has(a.id)).map(a => [a.id, a.name, a.desc, a.value, a.exposure, isGroup(a.id) ? "" : use(a)])]);
+  }
+  if (src === "blank") return toCsv([head]);
+  const risks = Object.fromEntries((ex ? seed().risks : S.risks).map(r => [r.threat, r]));
+  return toCsv([head, ...lib.threats.filter(t => !keep || keep.has(t.id)).map(t => {
+    const r = risks[t.id], sub = !isGroup(t.id);
+    const as = lib.assetThreat.filter(p => p[1] === t.id && (!keepA || keepA.has(p[0]))).map(p => p[0]).sort(idSort);
+    const cs = lib.threatControl.filter(p => p[0] === t.id).map(p => p[1]).sort(idSort);
+    return [t.id, t.name, t.desc, as.join("; "), cs.join("; "), sub ? (r ? "yes" : "no") : "", r?.owner ?? "", r?.l ?? "", r?.i ?? "", r?.control ?? "", r?.eff ?? "", r?.cost ?? ""];
+  })]);
+}
+const dlName = (kind, src) => `${kind}-${{ blank: "template", example: "example", current: "current" }[src]}.csv`;
+/* inside claude.ai the viewer's downloads capability saves files; a locally opened copy uses a normal browser download */
+const dlReady = window.claude?.use ? window.claude.use("downloads").catch(() => null) : Promise.resolve("browser");
+async function downloadFile(filename, data, type) {
+  // data is the full file text; type is the MIME type for the browser fallback
+  const d = await dlReady;
+  if (d === "browser") {
+    const url = URL.createObjectURL(new Blob([data], { type }));
+    const a = document.createElement("a"); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return toast(`Downloaded ${filename}`);
+  }
+  if (!d) return toast("Downloads aren't available in this view. Use Copy instead.");
+  try { await d.save({ filename, data }); toast(`Saved ${filename}`); }
+  catch (e) {
+    if (e?.code === "declined") return;
+    toast(e?.code === "rate_limited" ? "A save prompt is already open." : "The file couldn't be saved here. Use Copy instead.");
+  }
+}
+const downloadCsv = (filename, text) => downloadFile(filename, String.fromCharCode(0xFEFF) + text, "text/csv;charset=utf-8");
+function treatmentJson() {
+  const t = totals(), r1 = n => Math.round(n * 100) / 100;
+  return JSON.stringify({
+    source: "AIH Risk Workbench",
+    exportedAt: new Date().toISOString(),
+    budget: S.budget,
+    objective: S.objective === "eff" ? "highest_total_effectiveness" : "largest_risk_reduction",
+    summary: {
+      risks: S.risks.length, controlsSelected: t.sel, risksAccepted: S.risks.length - t.sel,
+      controlSpend: t.cost, budgetRemaining: S.budget - t.cost, withinBudget: t.cost <= S.budget,
+      initialRiskTotal: r1(t.initial), finalRiskTotal: r1(t.final),
+      reductionPercent: t.initial ? r1((1 - t.final / t.initial) * 100) : 0,
+    },
+    risks: S.risks.map(r => ({
+      threatId: r.threat, risk: r.name, owner: r.owner, assets: r.assets,
+      likelihood: r.l, impact: r.i, initialScore: r1(score(r)), initialRating: band(score(r)),
+      controlId: r.control || null, control: control[r.control]?.name ?? null, controlRationale: r.why,
+      effectiveness: r.eff, cost: r.cost, residualScore: r1(residual(r)),
+      selected: r.sel, finalScore: r1(finalScore(r)), finalRating: band(finalScore(r)), strategy: r.sel ? "Mitigate" : "Accept",
+    })),
+  }, null, 2) + "\n";
+}
+function parseCsv(text) {
+  text = text.replace(new RegExp("^" + String.fromCharCode(0xFEFF)), "");
+  let d = null;
+  const m = /^sep=(.)\r?\n/i.exec(text);
+  if (m) { d = m[1]; text = text.slice(m[0].length); }
+  if (!d) { const first = text.split(/\r?\n/, 1)[0]; d = [",", ";", "\t"].sort((a, b) => first.split(b).length - first.split(a).length)[0]; }
+  const rows = []; let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === d) { row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+    else f += c;
+  }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+function checkCsv(text, name) {
+  const rows = parseCsv(text || "").filter(r => r.some(c => c.trim()));
+  if (!rows.length) return { error: "There is nothing to import. Upload a file or paste rows that start with the template's header row." };
+  const hdr = rows[0].map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  const kind = hdr.includes("asset_id") ? "assets" : hdr.includes("threat_id") ? "threats" : null;
+  if (!kind) return { error: "The first row must be the template's header row, with an asset_id or threat_id column." };
+  if (rows.length < 2) return { error: "The file only has a header row. Add one row per " + (kind === "assets" ? "asset." : "threat.") };
+  const get = (r, n) => { const k = hdr.indexOf(n); return k < 0 ? "" : String(r[k] ?? "").trim(); };
+  const list = s => s.split(/[\s,;|]+/).map(x => x.trim()).filter(Boolean);
+  const lvl = v => ({ h: "H", high: "H", m: "M", medium: "M", l: "L", low: "L" })[v.toLowerCase()];
+  const items = new Map(), issues = [], unanswered = [];
+  rows.slice(1).forEach((r, k) => {
+    const line = k + 2;
+    if (kind === "assets") {
+      const id = get(r, "asset_id"), nm = get(r, "asset_name");
+      if (!id || !nm) return issues.push(`Row ${line}: asset_id and asset_name are required. Row skipped.`);
+      const value = lvl(get(r, "value")), exposure = lvl(get(r, "risk_exposure"));
+      if (!isGroup(id) && (!value || !exposure)) return issues.push(`Row ${line} (${id}): value and risk_exposure must be H, M or L. Row skipped.`);
+      if (items.has(id)) issues.push(`Row ${line}: ${id} appears more than once. The last row is used.`);
+      const u = get(r, "in_use").toLowerCase();
+      let inUse;
+      if (/^(yes|y|true|1|x|ναι)$/.test(u)) inUse = true;
+      else if (/^(no|n|false|0|όχι|οχι)$/.test(u)) inUse = false;
+      else if (u) issues.push(`Row ${line} (${id}): in_use must be YES or NO, not "${get(r, "in_use")}". Left unanswered.`);
+      if (inUse === undefined && !u && !isGroup(id) && hdr.includes("in_use")) unanswered.push(id);
+      items.set(id, { id, name: nm, desc: get(r, "description"), value: value || "", exposure: exposure || "", inUse });
+    } else {
+      const id = get(r, "threat_id"), nm = get(r, "threat_name");
+      if (!id || !nm) return issues.push(`Row ${line}: threat_id and threat_name are required. Row skipped.`);
+      const as = list(get(r, "affected_assets")), cs = list(get(r, "mitigating_controls"));
+      const badA = as.filter(a => !asset[a]), badC = cs.filter(c => !control[c]);
+      if (badA.length) issues.push(`Row ${line} (${id}): unknown asset IDs ${badA.join(", ")} were ignored. Import the assets first if they are new.`);
+      if (badC.length) issues.push(`Row ${line} (${id}): unknown control IDs ${badC.join(", ")} were ignored.`);
+      const num = n => { const s = get(r, n).replace(",", "."); if (!s) return null; const v = +s; if (!(v >= 1 && v <= 5)) { issues.push(`Row ${line} (${id}): ${n} must be between 1 and 5. Using 3.`); return 3; } return v; };
+      const reg = /^(y|yes|true|1|x|ναι)$/i.test(get(r, "in_register")), unreg = /^(n|no|false|0|όχι|οχι)$/i.test(get(r, "in_register"));
+      if (reg && isGroup(id)) issues.push(`Row ${line} (${id}): group headings cannot be added to the register.`);
+      if (items.has(id)) issues.push(`Row ${line}: ${id} appears more than once. The last row is used.`);
+      let ctl = get(r, "control").toUpperCase();
+      if (ctl && !control[ctl]) { issues.push(`Row ${line} (${id}): unknown control ${ctl} was ignored.`); ctl = ""; }
+      const effS = get(r, "effectiveness").replace(",", ".");
+      let eff = effS ? +effS : null;
+      if (effS && !(eff >= 0 && eff <= 10)) { issues.push(`Row ${line} (${id}): effectiveness must be between 0 and 10. Ignored.`); eff = null; }
+      let costS = get(r, "cost").replace(/[€\s]/g, "");
+      if (/^\d{1,3}([.,]\d{3})+$/.test(costS)) costS = costS.replace(/[.,]/g, "");
+      let cost = costS ? +costS.replace(",", ".") : null;
+      if (costS && !(cost >= 0)) { issues.push(`Row ${line} (${id}): cost must be a number of euros. Ignored.`); cost = null; }
+      items.set(id, { id, name: nm, desc: get(r, "description"),
+        assets: as.length || badA.length ? as.filter(a => asset[a]) : null, controls: cs.length || badC.length ? cs.filter(c => control[c]) : null,
+        reg: reg && !isGroup(id), unreg, owner: get(r, "risk_owner"), l: num("likelihood"), i: num("impact"), control: ctl, eff, cost });
+    }
+  });
+  if (unanswered.length) issues.push(`${unanswered.length} ${unanswered.length === 1 ? "asset has" : "assets have"} no in_use answer (${unanswered.slice(0, 8).join(", ")}${unanswered.length > 8 ? ", …" : ""}). ${unanswered.length === 1 ? "It keeps its" : "They keep their"} current setting.`);
+  const arr = [...items.values()];
+  const known = new Set((kind === "assets" ? LIB.assets : LIB.threats).map(x => x.id));
+  return { kind, name, items: arr, issues, use: kind === "assets" ? useCounts(arr.filter(x => !isGroup(x.id))) : null, added: arr.filter(x => !known.has(x.id)).length, updated: arr.filter(x => known.has(x.id)).length };
+}
+function withGroups(list, blank) {
+  const ids = new Set(list.map(x => x.id)), out = [...list];
+  for (const x of list) { const g = groupOf(x.id); if (!ids.has(g)) { ids.add(g); out.push({ ...blank, id: g, name: g }); } }
+  return out.sort((a, b) => idSort(a.id, b.id));
+}
+function applyImport(imp, mode) {
+  const n = imp.items.length;
+  if (imp.kind === "assets") {
+    const map = new Map(mode === "replace" ? [] : LIB.assets.map(a => [a.id, a]));
+    imp.items.forEach(x => map.set(x.id, { ...x, inUse: x.inUse ?? map.get(x.id)?.inUse }));
+    LIB = { ...LIB, assets: withGroups([...map.values()], { desc: "", value: "", exposure: "" }) };
+    const ids = new Set(LIB.assets.map(a => a.id));
+    LIB.assetThreat = LIB.assetThreat.filter(([a]) => ids.has(a));
+    reindex(); saveLib();
+    const subs = LIB.assets.filter(a => !isGroup(a.id)), u = useCounts(subs);
+    return `Imported ${n} asset rows from ${imp.name}. The library has ${subs.length} assets: ${u.yes} in use, ${u.no} not used, ${u.unset} not answered.`;
+  }
+  const map = new Map(mode === "replace" ? [] : LIB.threats.map(t => [t.id, t]));
+  imp.items.forEach(x => map.set(x.id, { id: x.id, name: x.name, desc: x.desc }));
+  const threats = withGroups([...map.values()], { desc: "" }), ids = new Set(threats.map(t => t.id));
+  const newA = new Set(imp.items.filter(x => x.assets).map(x => x.id)), newC = new Set(imp.items.filter(x => x.controls).map(x => x.id));
+  const at = mode === "replace" ? [] : LIB.assetThreat.filter(([, t]) => !newA.has(t) && ids.has(t));
+  const tc = mode === "replace" ? [] : LIB.threatControl.filter(([t]) => !newC.has(t) && ids.has(t));
+  imp.items.forEach(x => { (x.assets || []).forEach(a => at.push([a, x.id])); (x.controls || []).forEach(c => tc.push([x.id, c])); });
+  LIB = { ...LIB, threats, assetThreat: at, threatControl: tc };
+  reindex(); saveLib();
+  const before = S.risks.length;
+  S.risks = S.risks.filter(r => ids.has(r.threat));
+  const dropped = before - S.risks.length;
+  let reg = 0;
+  for (const x of imp.items.filter(x => x.reg)) {
+    const r = S.risks.find(r => r.threat === x.id) || addRisk(x.id, true);
+    if (x.owner) r.owner = x.owner;
+    if (x.l != null) r.l = x.l;
+    if (x.i != null) r.i = x.i;
+    if (x.control) r.control = x.control;
+    if (x.eff != null) r.eff = x.eff;
+    if (x.cost != null) r.cost = x.cost;
+    reg++;
+  }
+  const unreg = new Set(imp.items.filter(x => x.unreg).map(x => x.id)), beforeUn = S.risks.length;
+  S.risks = S.risks.filter(r => !unreg.has(r.threat));
+  const removed = beforeUn - S.risks.length;
+  save();
+  return `Imported ${n} threat rows from ${imp.name}. ${reg} ${reg === 1 ? "is" : "are"} marked as identified risks in the register.`
+    + (removed ? ` ${removed} ${removed === 1 ? "risk marked NO was" : "risks marked NO were"} removed from the register.` : "") + (dropped ? ` ${dropped} register ${dropped === 1 ? "risk was" : "risks were"} removed because ${dropped === 1 ? "its threat is" : "their threats are"} no longer in the library.` : "");
+}
+
+views.import = () => {
+  const k = ui.tpl, src = k === "assets" && ui.tplSrc === "current" ? "blank" : ui.tplSrc;
+  const ref = COLS[k].map(([c, req, d]) => `<tr><td class="id">${c}</td><td>${req === "Required" ? `<span class="pill strat-Mitigate">Required</span>` : `<span class="muted" style="font-size:12px">Optional</span>`}</td><td>${esc(d)}</td></tr>`).join("");
+  let preview = "";
+  if (ui.imp?.error) preview = `<div class="note warn">${esc(ui.imp.error)}</div>`;
+  else if (ui.imp) {
+    const im = ui.imp, word = im.kind === "assets" ? "asset" : "threat";
+    const replaceWarn = ui.impMode === "replace" ? (im.kind === "threats"
+      ? ` Replace mode deletes every threat that is not in this file, along with its mappings and any register risks that use it.`
+      : ` Replace mode deletes every asset that is not in this file, along with its threat mappings.`) : "";
+    preview = `<div class="panel pad" style="display:grid;gap:10px">
+      <h3>Check before importing</h3>
+      <p style="margin:0"><strong>${esc(im.name)}</strong> has ${im.items.length} ${word} rows: ${im.added} new and ${im.updated} updating existing IDs.${im.use ? ` In use: ${im.use.yes} YES, ${im.use.no} NO, ${im.use.unset} blank.` : ""}${replaceWarn}</p>
+      ${im.issues.length ? `<div class="note warn"><strong>${im.issues.length} ${im.issues.length === 1 ? "issue" : "issues"}</strong><ul class="issues">${im.issues.slice(0, 25).map(s => `<li>${esc(s)}</li>`).join("")}${im.issues.length > 25 ? `<li>and ${im.issues.length - 25} more</li>` : ""}</ul></div>` : `<div class="note ok">No problems found.</div>`}
+      <div class="toolbar">${im.items.length ? `<button class="btn primary" data-act="imp-apply">${ui.impMode === "replace" ? "Replace" : "Import"} ${im.items.length} ${word}${im.items.length === 1 ? "" : "s"}</button>` : ""}<button class="btn" data-act="imp-cancel">Cancel</button></div></div>`;
+  }
+  return head("Import CSV", "Load your own assets and identified threats. Download a template, fill it in Excel, save it as CSV UTF-8, then upload it here. Import assets before threats so the threat file can refer to them.",
+      `<div class="toolbar"><button class="btn primary" data-act="dl" data-id="assets" data-src="blank">Download assets template</button><button class="btn primary" data-act="dl" data-id="threats" data-src="blank">Download threats template</button></div>`)
+    + `<div class="panel pad" style="display:grid;gap:14px">
+        <div class="toolbar" style="justify-content:space-between"><h3>1 · Get a template</h3>
+          <div class="chips" role="group" aria-label="Template"><button type="button" class="chip ${k === "assets" ? "on" : ""}" data-act="tpl" data-id="assets">Assets</button><button type="button" class="chip ${k === "threats" ? "on" : ""}" data-act="tpl" data-id="threats">Threats</button></div></div>
+        <div class="scroll"><table><thead><tr><th>Column</th><th></th><th>What to enter</th></tr></thead><tbody>${ref}</tbody></table></div>
+        <div class="toolbar" style="justify-content:space-between">
+          <div class="chips" role="group" aria-label="Template contents">${(k === "assets" ? [["blank", "Full asset library"], ["example", "Example rows"]] : [["blank", "Blank (headers only)"], ["example", "Example rows"], ["current", "Current threats (all)"]]).map(([s, l]) => `<button type="button" class="chip ${src === s ? "on" : ""}" data-act="tpl-src" data-id="${s}">${l}</button>`).join("")}</div>
+          <div class="toolbar"><button class="btn primary" data-act="dl" data-id="${k}" data-src="${src}">Download ${dlName(k, src)}</button><button class="btn" data-act="tpl-copy">Copy</button></div></div>
+        <textarea class="code" id="tpl-text" readonly aria-label="Template CSV">${esc(templateCsv(k, src))}</textarea>
+        <p class="muted" style="margin:0;font-size:12px">${k === "assets"
+          ? "The assets template lists every asset in the library. Open it in Excel, type YES or NO in the in_use column for each asset, save as CSV UTF-8 and upload it below. You can also add rows for assets that are missing. Answers you already gave in the app are filled in."
+          : `Open it in Excel, fill in one row per threat, keep the header row, and save as CSV UTF-8. "Current" exports your full list, so you can edit it and import it again.`}</p></div>
+      <div class="panel pad" style="display:grid;gap:14px">
+        <h3>2 · Upload</h3>
+        <div class="chips" role="group" aria-label="Import mode">
+          <button type="button" class="chip ${ui.impMode === "merge" ? "on" : ""}" data-act="imp-mode" data-id="merge">Add and update</button>
+          <button type="button" class="chip ${ui.impMode === "replace" ? "on" : ""}" data-act="imp-mode" data-id="replace">Replace the whole list</button></div>
+        <p class="muted" style="margin:0;font-size:13px">${ui.impMode === "merge" ? "Rows with a new ID are added. Rows with an existing ID overwrite it. Everything else stays." : "The uploaded file becomes the complete list. Anything not in the file is removed."}</p>
+        <label class="drop" for="imp-file"><span><strong>Choose a CSV file</strong> or drop it here. The app detects assets or threats from the header row.</span><span class="btn">Browse…</span></label>
+        <input type="file" id="imp-file" accept=".csv,.txt,text/csv" hidden>
+        <details><summary>Or paste rows from Excel</summary>
+          <textarea class="code" id="imp-paste" style="margin-top:8px" placeholder="Paste rows here, including the header row" aria-label="Pasted rows">${esc(ui.paste)}</textarea>
+          <button class="btn" data-act="imp-check-paste" style="margin-top:8px">Check pasted rows</button></details></div>`
+    + preview
+    + (ui.impDone ? `<div class="note ok">${esc(ui.impDone)}</div>` : "")
+    + `<p class="muted" style="margin:0;font-size:12px">Imports are saved in this browser only. "Reset to workbook data" at the top undoes them.</p>`;
+};
+
+/* ---------- events ---------- */
+function addRisk(id, quiet) {
+  if (!id || inRegister(id)) return;
+  const groups = [...new Set((assetsOfThreat[id] || []).map(a => asset[groupOf(a)]?.name).filter(Boolean))];
+  const mapped = (controlsOfThreat[id] || []).sort(idSort);
+  const r = { threat: id, name: threat[id].name, assets: groups.join(", "), owner: "", l: 3, i: 3, control: mapped[0] || "", eff: 5, why: "", cost: 0, sel: false };
+  S.risks.push(r);
+  save(); if (!quiet) toast(`Added ${id} to the register`);
+  return r;
+}
+
+document.addEventListener("click", e => {
+  if (e.target.matches("select, option, input, textarea")) return;
+  const nav = e.target.closest("[data-view]"); if (nav) return go(nav.dataset.view);
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const id = b.dataset.id, k = +b.dataset.k;
+  switch (b.dataset.act) {
+    case "toggle": ui.open.has(id) ? ui.open.delete(id) : ui.open.add(id); break;
+    case "goto-threat": e.stopPropagation(); ui.q.threats = id; ui.open.add(id); return go("threats");
+    case "goto-asset": e.stopPropagation(); ui.q.assets = id; ui.open.add(id); return go("assets");
+    case "goto-control": e.stopPropagation(); ui.q.controls = id; ui.open.add(id); return go("controls");
+    case "add-risk": e.stopPropagation(); addRisk(id); break;
+    case "add-from-select": addRisk(document.getElementById("add-sel")?.value); break;
+    case "del": ui.confirm = k; break;
+    case "del-no": ui.confirm = null; break;
+    case "del-yes": S.risks.splice(k, 1); ui.confirm = null; save(); break;
+    case "mx": ui.mx = id; break;
+    case "mxg": ui.mxGroup = id; break;
+    case "optimise": optimise(); save(); break;
+    case "reset": ui.resetting = true; break;
+    case "reset-no": ui.resetting = false; break;
+    case "reset-yes": LIB = workbookLib(); reindex(); saveLib(); S = seed(); ui.resetting = false; ui.msg = null; ui.imp = null; ui.impDone = null; save(); toast("Workbook data restored"); break;
+    case "tpl": ui.tpl = id; break;
+    case "tpl-src": ui.tplSrc = id; break;
+    case "use-filter": ui.useFilter = id; break;
+    case "dl-json": downloadFile(`risk-treatment-${new Date().toISOString().slice(0, 10)}.json`, treatmentJson(), "application/json"); return;
+    case "dl": downloadCsv(dlName(id, b.dataset.src), templateCsv(id, b.dataset.src)); return;
+    case "tpl-copy": {
+      const ta = document.getElementById("tpl-text");
+      navigator.clipboard?.writeText(ta.value).then(() => toast("Template copied. Paste it into Excel or a text editor."), () => { ta.focus(); ta.select(); toast("Press Ctrl+C to copy the selected text."); });
+      return;
+    }
+    case "imp-mode": ui.impMode = id; break;
+    case "imp-check-paste": ui.imp = checkCsv(ui.paste, "Pasted rows"); ui.impDone = null; break;
+    case "imp-cancel": ui.imp = null; break;
+    case "imp-apply": ui.impDone = applyImport(ui.imp, ui.impMode); ui.imp = null; ui.paste = ""; toast("Import complete"); break;
+    case "copy": {
+      const hdr = ["Threat ID", "Threat", "Control ID", "Control", "Cost (€)", "Initial risk", "Effectiveness", "Residual risk", "Selected", "Final risk", "Strategy"];
+      const lines = [hdr, ...S.risks.map(r => [r.threat, r.name, r.control, control[r.control]?.name || "", r.cost, fmt(score(r)), r.eff, fmt(residual(r)), r.sel ? 1 : 0, fmt(finalScore(r)), r.sel ? "Mitigate" : "Accept"])].map(x => x.join("\t")).join("\n");
+      navigator.clipboard?.writeText(lines).then(() => toast("Table copied. Paste it into Excel."), () => toast("Copy was blocked by the browser."));
+      return;
+    }
+  }
+  render();
+});
+document.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches("tr.click")) { e.preventDefault(); e.target.click(); }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "imp-paste") { ui.paste = e.target.value; return; }
+  const q = e.target.dataset.q; if (q != null) { ui.q[q] = e.target.value; render(); }
+});
+function readFile(file) {
+  if (!file) return;
+  const fr = new FileReader();
+  fr.onload = () => { ui.imp = checkCsv(String(fr.result), file.name); ui.impDone = null; render(); };
+  fr.onerror = () => { ui.imp = { error: `Could not read ${file.name}. Save it as "CSV UTF-8" and try again.` }; render(); };
+  fr.readAsText(file, "UTF-8");
+}
+document.addEventListener("dragover", e => { const z = e.target.closest?.(".drop"); if (z) { e.preventDefault(); z.classList.add("over"); } });
+document.addEventListener("dragleave", e => { e.target.closest?.(".drop")?.classList.remove("over"); });
+document.addEventListener("drop", e => { const z = e.target.closest?.(".drop"); if (z) { e.preventDefault(); readFile(e.dataTransfer.files[0]); } });
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.id === "imp-file") { readFile(el.files[0]); el.value = ""; return; }
+  if (el.dataset.use) {
+    const a = LIB.assets.find(x => x.id === el.dataset.use);
+    if (a) { a.inUse = el.value === "yes" ? true : el.value === "no" ? false : undefined; saveLib(); reindex(); }
+    return render();
+  }
+  if (el.dataset.ui) { ui[el.dataset.ui] = el.checked; return render(); }
+  if (el.dataset.g) { S[el.dataset.g] = el.type === "number" ? Math.max(0, +el.value || 0) : el.value; ui.msg = null; save(); return render(); }
+  if (el.dataset.f == null) return;
+  const r = S.risks[+el.dataset.k], f = el.dataset.f;
+  if (!r) return;
+  if (f === "sel") { r.sel = el.checked; ui.msg = null; }
+  else if (el.type === "number") {
+    const lim = { l: [1, 5], i: [1, 5], eff: [0, 10], cost: [0, Infinity] }[f];
+    r[f] = Math.min(lim[1], Math.max(lim[0], +el.value || 0));
+  } else r[f] = el.value;
+  save(); render();
+});
+
+const h = location.hash.slice(1);
+if (VIEWS.some(v => v.id === h)) ui.view = h;
+render();
+</script>
