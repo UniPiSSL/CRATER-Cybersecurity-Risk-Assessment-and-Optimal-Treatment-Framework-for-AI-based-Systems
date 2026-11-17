@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRATER Game &amp; Attack Simulator</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #667085;
+    --border: #dde1e7; --accent: #2f6fdd; --accent-weak: #e8effc;
+    --danger: #c0392b; --ok: #1e8e5a; --ok-weak: #e7f5ee;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 28px 8px; }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; color: var(--muted); max-width: 980px; }
+  main { display: grid; grid-template-columns: minmax(460px, 1fr) minmax(460px, 1fr); gap: 20px; padding: 16px 28px 40px; }
+  @media (max-width: 1050px) { main { grid-template-columns: 1fr; } }
+  section.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 20px; }
+  h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h3 { font-size: 14px; margin: 16px 0 6px; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  input[type=text], input[type=number], select {
+    font: inherit; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); min-width: 0;
+  }
+  input[type=number] { width: 80px; }
+  input.wide { width: 100%; }
+  input.invalid, select.invalid { border-color: var(--danger); background: #fdf0ee; }
+  button { font: inherit; border: 1px solid var(--border); background: #fff; color: var(--text); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover { background: var(--accent-weak); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; padding: 8px 18px; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.icon { padding: 2px 8px; color: var(--muted); }
+  button.icon:hover { color: var(--danger); background: #fdf0ee; }
+  .box { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .box-head { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-bottom: 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-weight: 600; font-size: 12.5px; color: var(--muted); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px 3px 6px; font-size: 13px; cursor: pointer; user-select: none; }
+  .chip:has(input:checked) { background: var(--accent-weak); border-color: var(--accent); }
+  .muted { color: var(--muted); }
+  .over { color: var(--danger); font-weight: 600; }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .warn { color: var(--danger); font-size: 12.5px; margin-top: 6px; }
+  .note { color: #8a5a00; background: #fff6e0; border: 1px solid #f0d9a0; border-radius: 6px; padding: 6px 10px; font-size: 12.5px; margin-bottom: 10px; }
+  .stat-row { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 10px; }
+  .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  tr.pure td { background: var(--ok-weak); }
+  tr.support td { font-weight: 600; }
+  td.best { color: var(--ok); font-weight: 600; }
+  details { margin-top: 10px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .scroll { max-height: 420px; overflow: auto; }
+  .tag { font-size: 11px; border-radius: 4px; padding: 1px 5px; margin-left: 4px; background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .progress { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CRATER Game &amp; Attack Simulator</h1>
+  <p>This is the zero-sum game from the CRATER case study (Section IV). The defender chooses a set of controls within the budget,
+    and the attacker chooses an attack path. Each edge succeeds with probability <b>p × (1 − e)</b> if a control with efficacy e
+    protects it. The attacker's payoff is the product of the edge probabilities along the path (Eq. 6). <b>Solve</b> finds the
+    equilibrium (Eq. 8) and the payoff matrix (Table 6), and <b>Simulate</b> runs the Monte Carlo experiment of Table 7.
+    With a whole-number seed, the results are identical to <code>crater_simulation.py</code>.</p>
+</header>
+
+<main>
+  <div>
+    <section class="card">
+      <h2>Settings</h2>
+      <div class="row">
+        <label class="field">Budget B <input type="number" min="0" step="5" data-bind="budget" data-min="0" id="budget"></label>
+        <label class="field">Attacks per scenario <input type="number" min="1" step="1000" data-bind="runs" data-min="1" id="runs"></label>
+        <label class="field">Repetitions <input type="number" min="1" step="1" data-bind="reps" data-min="1" id="reps"></label>
+        <label class="field">Seed (blank = random) <input type="text" data-bind="seed" id="seed" style="width:110px" title="A whole number gives exactly the same results as crater_simulation.py"></label>
+      </div>
+      <div class="actions">
+        <button class="primary" data-action="runAll">▶ Solve &amp; simulate</button>
+        <button data-action="solveOnly">Solve game only</button>
+      </div>
+      <div id="warnings"></div>
+    </section>
+
+    <section class="card">
+      <h2>Attack paths <button data-action="addPath">+ Add path</button></h2>
+      <p class="hint">Each path is a chain of edges with a transition probability p. Edge names must be unique.</p>
+      <div id="paths"></div>
+    </section>
+
+    <section class="card">
+      <h2>Controls (Table 5) <button data-action="addControl">+ Add control</button></h2>
+      <p class="hint">Each control protects one edge and has a cost and an efficacy e. The residual is S = 1 − e.</p>
+      <div id="controls"></div>
+    </section>
+
+    <section class="card">
+      <h2>Defender configurations <button data-action="addDefender">+ Add configuration</button></h2>
+      <p class="hint">The rows of Table 7. The defaults are the paper's three configurations. You can also add the two
+        configurations the solver computes, which the paper discusses but doesn't simulate:</p>
+      <div class="chips" style="margin-bottom:12px">
+        <label class="chip"><input type="checkbox" id="includePure"> Pure security strategy</label>
+        <label class="chip"><input type="checkbox" id="includeSigma"> Equilibrium mixture σ*</label>
+      </div>
+      <div id="defenders"></div>
+    </section>
+
+    <section class="card">
+      <h2>Configuration file</h2>
+      <p class="hint">Your settings are saved in this browser automatically. Use export/import to share them or keep versions.</p>
+      <div class="actions">
+        <button data-action="export">⬇ Export JSON</button>
+        <button data-action="import">⬆ Import JSON</button>
+        <button data-action="reset">↺ Reset to paper's case study</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="card">
+      <h2>Equilibrium</h2>
+      <div id="equilibrium"><div class="empty">Press <b>Solve</b> to compute the equilibrium.</div></div>
+    </section>
+    <section class="card">
+      <h2>Simulation results</h2>
+      <div id="simulation"><div class="empty">Press <b>Solve &amp; simulate</b> to run the experiments.</div></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const STORAGE_KEY = 'crater-simulator-v2';
+const MAX_CONTROLS = 20;
+
+// The case study of the CRATER paper (Section IV: Figure 2, Table 5, Table 7)
+const PAPER_MODEL = {
+  budget: 100, runs: 8000, reps: 10, seed: '42',
+  includePure: false, includeSigma: false,
+  paths: [
+    { name: 'Path 1', edges: [
+      { name: 'Start→A', p: 0.67 }, { name: 'A→B', p: 0.56 }, { name: 'B→C', p: 0.56 },
+      { name: 'C→D', p: 0.56 }, { name: 'D→F', p: 0.95 } ] },
+    { name: 'Path 2', edges: [
+      { name: 'Start→t1', p: 0.71 }, { name: 't1→t2', p: 0.38 }, { name: 't2→t3', p: 0.95 }, { name: 't3→F', p: 0.75 } ] },
+    { name: 'Path 3', edges: [
+      { name: 'Start→p1', p: 0.82 }, { name: 'p1→p2', p: 0.56 }, { name: 'p2→p3', p: 0.75 }, { name: 'p3→F', p: 0.95 } ] },
+  ],
+  controls: [
+    { threat: 'T7.1',  id: 'C49',     name: 'Bias Detection',                      edge: 'Start→A',  cost: 25, e: 0.50 },
+    { threat: 'T1.7',  id: 'C7(A→B)', name: 'Use Ensemble Methods',                edge: 'A→B',      cost: 50, e: 0.75 },
+    { threat: 'T1.8',  id: 'C7(B→C)', name: 'Use Ensemble Methods',                edge: 'B→C',      cost: 40, e: 0.63 },
+    { threat: 'T4.5',  id: 'C24',     name: 'AI Telemetry Logging',                edge: 'C→D',      cost: 30, e: 0.43 },
+    { threat: 'T5.14', id: 'C25',     name: 'Maintain AI Dataset Provenance',      edge: 'Start→t1', cost: 50, e: 0.45 },
+    { threat: 'T6.1',  id: 'C1',      name: 'Limit Public Release of Information', edge: 'Start→p1', cost: 35, e: 0.63 },
+    { threat: 'T1.9',  id: 'C46',     name: 'Data Quality Assurance',              edge: 'p1→p2',    cost: 60, e: 0.30 },
+    { threat: 'T1.1',  id: 'C11',     name: 'Input Restoration',                   edge: 'p2→p3',    cost: 80, e: 0.31 },
+  ],
+  // Table 7 rows, in the paper's order. inPayoff = also listed in Table 6.
+  defenders: [
+    { name: 'Random approach', controls: ['C7(B→C)', 'C46'], inPayoff: false },
+    { name: 'No Applied Security Control', controls: [], inPayoff: false },
+    { name: 'CRATER', controls: ['C49', 'C7(B→C)', 'C1'], inPayoff: true },
+  ],
+};
+
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = x => (x * 100).toFixed(2) + '%';
+const sum = a => a.reduce((s, x) => s + x, 0);
+const uid = () => 'u' + Math.random().toString(36).slice(2, 10);
+
+let state = load();
+let lastSolution = null;
+let resultsShown = false;
+
+/* ---------- state ---------- */
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && Array.isArray(saved.paths) && Array.isArray(saved.controls)) return normalise(saved);
+  } catch (_) {}
+  return normalise(clone(PAPER_MODEL));
+}
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+// Give edges and controls stable internal ids, so they can be renamed freely.
+// Also accepts hand-written JSON that refers to edges / controls by name.
+function normalise(s) {
+  s.defenders = s.defenders || [];
+  for (const p of s.paths) for (const ed of p.edges) ed.uid = ed.uid || uid();
+  const allEdges = s.paths.flatMap(p => p.edges);
+  for (const c of s.controls) {
+    c.uid = c.uid || uid();
+    if (c.threat === undefined) c.threat = '';
+    if (!c.edgeUid && c.edge !== undefined) {
+      const ed = allEdges.find(x => x.name === c.edge);
+      c.edgeUid = ed ? ed.uid : '';
+    }
+    delete c.edge;
+  }
+  for (const d of s.defenders) {
+    d.inPayoff = !!d.inPayoff;
+    d.controls = (d.controls || [])
+      .map(ref => (s.controls.find(c => c.uid === ref) || s.controls.find(c => c.id === ref) || {}).uid)
+      .filter(Boolean);
+  }
+  if (s.includePure === undefined) s.includePure = true;
+  if (s.includeSigma === undefined) s.includeSigma = true;
+  return s;
+}
+
+const allEdges = () => state.paths.flatMap(p => p.edges);
+const controlByUid = u => state.controls.find(c => c.uid === u);
+const setCost = controls => sum(controls.map(c => +c.cost || 0));
+const setLabel = controls => controls.length ? controls.map(c => c.id).join(' ∪ ') : 'No controls';
+
+/* ---------- rendering ---------- */
+
+function render() {
+  for (const k of ['budget', 'runs', 'reps', 'seed']) document.getElementById(k).value = state[k];
+  document.getElementById('includePure').checked = state.includePure;
+  document.getElementById('includeSigma').checked = state.includeSigma;
+  renderPaths();
+  renderControls();
+  renderDefenders();
+  validate();
+}
+
+function renderPaths() {
+  document.getElementById('paths').innerHTML = state.paths.map((p, pi) => `
+    <div class="box">
+      <div class="box-head">
+        <label class="field">Path name <input type="text" class="wide" value="${esc(p.name)}" data-bind="paths.${pi}.name" data-rerender="controls"></label>
+        <button class="icon" title="Remove path" data-action="removePath" data-p="${pi}">✕</button>
+      </div>
+      <table>
+        <thead><tr><th>Edge</th><th class="num">p</th><th class="muted">Protected by</th><th></th></tr></thead>
+        <tbody>${p.edges.map((ed, i) => `
+          <tr>
+            <td><input type="text" value="${esc(ed.name)}" data-bind="paths.${pi}.edges.${i}.name" data-rerender="controls" style="width:110px"></td>
+            <td class="num"><input type="number" min="0" max="1" step="0.01" value="${ed.p}" data-bind="paths.${pi}.edges.${i}.p" data-min="0" data-max="1"></td>
+            <td class="muted">${esc(state.controls.filter(c => c.edgeUid === ed.uid).map(c => c.id).join(', ') || '–')}</td>
+            <td><button class="icon" title="Remove edge" data-action="removeEdge" data-p="${pi}" data-i="${i}">✕</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="actions"><button data-action="addEdge" data-p="${pi}">+ Add edge</button></div>
+    </div>`).join('') || '<p class="muted">No paths yet.</p>';
+}
+
+function renderControls() {
+  const options = state.paths.flatMap(p => p.edges.map(ed => ({ uid: ed.uid, label: `${p.name}: ${ed.name}` })));
+  document.getElementById('controls').innerHTML = state.controls.length ? `
+    <table>
+      <thead><tr><th>Threat</th><th>ID</th><th>Name</th><th>Edge</th><th class="num">Cost</th><th class="num">Efficacy e</th><th></th></tr></thead>
+      <tbody>${state.controls.map((c, i) => `
+        <tr>
+          <td><input type="text" value="${esc(c.threat)}" data-bind="controls.${i}.threat" style="width:56px"></td>
+          <td><input type="text" value="${esc(c.id)}" data-bind="controls.${i}.id" data-rerender="defenders,paths" style="width:80px"></td>
+          <td><input type="text" class="wide" value="${esc(c.name)}" data-bind="controls.${i}.name"></td>
+          <td><select data-bind="controls.${i}.edgeUid" data-rerender="paths" class="${options.some(o => o.uid === c.edgeUid) ? '' : 'invalid'}">
+            ${options.some(o => o.uid === c.edgeUid) ? '' : '<option value="">— choose edge —</option>'}
+            ${options.map(o => `<option value="${o.uid}" ${o.uid === c.edgeUid ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+          </select></td>
+          <td class="num"><input type="number" min="0" step="5" value="${c.cost}" data-bind="controls.${i}.cost" data-min="0" data-rerender="defenders" style="width:70px"></td>
+          <td class="num"><input type="number" min="0" max="1" step="0.01" value="${c.e}" data-bind="controls.${i}.e" data-min="0" data-max="1" style="width:70px"></td>
+          <td><button class="icon" title="Remove control" data-action="removeControl" data-i="${i}">✕</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : '<p class="muted">No controls yet.</p>';
+}
+
+function renderDefenders() {
+  document.getElementById('defenders').innerHTML = state.defenders.map((d, di) => {
+    const chosen = d.controls.map(controlByUid).filter(Boolean);
+    const cost = setCost(chosen);
+    return `
+    <div class="box">
+      <div class="box-head">
+        <label class="field">Name <input type="text" class="wide" value="${esc(d.name)}" data-bind="defenders.${di}.name"></label>
+        <button class="icon" title="Remove configuration" data-action="removeDefender" data-d="${di}">✕</button>
+      </div>
+      <div class="chips">${state.controls.map(c => `
+        <label class="chip"><input type="checkbox" data-def="${di}" data-ctl="${c.uid}" ${d.controls.includes(c.uid) ? 'checked' : ''}>
+          ${esc(c.id)} <span class="muted">${c.cost}</span></label>`).join('')}
+      </div>
+      <div class="hint" style="margin:8px 0 0">Cost: <span class="${cost > state.budget ? 'over' : ''}">${cost}</span> / ${state.budget}
+        ${cost > state.budget ? ' (over budget)' : ''}
+        · <label><input type="checkbox" data-inpayoff="${di}" ${d.inPayoff ? 'checked' : ''}> also list in the payoff matrix (Table 6)</label></div>
+    </div>`;
+  }).join('') || '<p class="muted">No fixed configurations. Only the computed ones will be simulated.</p>';
+}
+
+// Returns true when the model can be solved; shows blocking errors and soft warnings.
+function validate() {
+  const errors = [], warnings = [];
+  let badInputs = 0;
+  document.querySelectorAll('input[type=number][data-bind]').forEach(el => {
+    const v = parseFloat(el.value);
+    const min = el.dataset.min !== undefined ? +el.dataset.min : -Infinity;
+    const max = el.dataset.max !== undefined ? +el.dataset.max : Infinity;
+    const invalid = !Number.isFinite(v) || v < min || v > max;
+    el.classList.toggle('invalid', invalid);
+    if (invalid) badInputs++;
+  });
+  if (badInputs) errors.push(`${badInputs} value(s) are out of range. p and e must be between 0 and 1, and costs can't be negative.`);
+  if (!state.paths.length) errors.push('Add at least one attack path.');
+  if (state.paths.some(p => !p.edges.length)) errors.push('Every path needs at least one edge.');
+  const names = allEdges().map(e => e.name);
+  const dupEdges = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
+  if (dupEdges.length) errors.push(`Duplicate edge names: ${dupEdges.map(esc).join(', ')}.`);
+  const ids = state.controls.map(c => c.id);
+  const dupIds = [...new Set(ids.filter((n, i) => ids.indexOf(n) !== i))];
+  if (dupIds.length) errors.push(`Duplicate control IDs: ${dupIds.map(esc).join(', ')}.`);
+  const edgeUids = new Set(allEdges().map(e => e.uid));
+  const orphan = state.controls.filter(c => !edgeUids.has(c.edgeUid));
+  if (orphan.length) errors.push(`Choose an edge for: ${orphan.map(c => esc(c.id)).join(', ')}.`);
+  if (state.controls.length > MAX_CONTROLS) errors.push(`At most ${MAX_CONTROLS} controls are supported, because every subset is enumerated.`);
+  for (const d of state.defenders) {
+    const cost = setCost(d.controls.map(controlByUid).filter(Boolean));
+    if (cost > state.budget) warnings.push(`"${esc(d.name)}" costs ${cost}, which is over the budget of ${state.budget}.`);
+  }
+  document.getElementById('warnings').innerHTML =
+    errors.map(m => `<div class="warn">⛔ ${m}</div>`).join('') +
+    warnings.map(m => `<div class="warn" style="color:#8a5a00">⚠ ${m}</div>`).join('');
+  return errors.length === 0;
+}
+
+/* ---------- model ---------- */
+
+function edgeProbs(path, controls) {
+  return path.edges.map(ed => controls.reduce((p, c) => c.edgeUid === ed.uid ? p * (1 - c.e) : p, ed.p));
+}
+
+function successProb(path, controls) {
+  return edgeProbs(path, controls).reduce((a, x) => a * x, 1);
+}
+
+// Same order as Python's itertools.combinations by size, so both solvers see the same LP
+function feasibleSubsets() {
+  const cs = state.controls, out = [];
+  const combos = (start, k, prefix) => {
+    if (k === 0) {
+      const cost = setCost(prefix);
+      if (cost <= state.budget) out.push({ controls: prefix, cost });
+      return;
+    }
+    for (let i = start; i <= cs.length - k; i++) combos(i + 1, k - 1, [...prefix, cs[i]]);
+  };
+  for (let k = 0; k <= cs.length; k++) combos(0, k, []);
+  return out;
+}
+
+// Maximise c·y subject to A y <= b, y >= 0 (b >= 0). Bland's rule, so no cycling.
+function simplexMax(c, A, b, eps = 1e-12) {
+  const m = A.length, n = c.length;
+  const T = A.map((row, i) => [...row, ...Array.from({ length: m }, (_, j) => (j === i ? 1 : 0)), b[i]]);
+  let obj = [...c.map(x => -x), ...Array(m).fill(0), 0];
+  const basis = Array.from({ length: m }, (_, i) => n + i);
+  for (let iter = 0; iter < 10000; iter++) {
+    const col = obj.slice(0, n + m).findIndex(x => x < -eps);
+    if (col === -1) break;
+    let row = -1, best = Infinity;
+    for (let i = 0; i < m; i++) {
+      if (T[i][col] > eps) {
+        const ratio = T[i][n + m] / T[i][col];
+        if (ratio < best || (ratio === best && basis[i] < basis[row])) { best = ratio; row = i; }
+      }
+    }
+    if (row === -1) throw new Error('LP is unbounded');
+    const pv = T[row][col];
+    T[row] = T[row].map(x => x / pv);
+    for (let i = 0; i < m; i++) {
+      if (i !== row && T[i][col] !== 0) { const f = T[i][col]; T[i] = T[i].map((x, j) => x - f * T[row][j]); }
+    }
+    const f = obj[col];
+    obj = obj.map((x, j) => x - f * T[row][j]);
+    basis[row] = col;
+  }
+  const y = Array(n).fill(0);
+  basis.forEach((j, i) => { if (j < n) y[j] = T[i][n + m]; });
+  return { y, duals: obj.slice(n, n + m).map(d => Math.max(0, d)) };
+}
+
+// Equation 8: the defender (rows) minimises the attacker's success probability
+function solveGame() {
+  const paths = state.paths;
+  const subsets = feasibleSubsets();
+  const U = subsets.map(s => paths.map(p => successProb(p, s.controls)));
+  const shift = 1;   // make every payoff positive
+  const A = paths.map((_, k) => subsets.map((_, x) => U[x][k] + shift));
+  const { y, duals } = simplexMax(subsets.map(() => 1), A, paths.map(() => 1));
+  const total = sum(y);
+  const sigma = y.map(v => v / total);
+  const q = duals.map(d => d / sum(duals));
+  const value = 1 / total - shift;
+  const worst = U.map(r => Math.max(...r));
+  const pure = worst.indexOf(Math.min(...worst));
+  return { subsets, U, value, sigma, q, pure, worst };
+}
+
+/* ---------- simulation ---------- */
+
+// Python's random module: MT19937 seeded like random.seed(int), and random.random()
+function pythonRandom(key) {
+  const N = 624, mt = new Uint32Array(N);
+  let mti = N + 1;
+  const initGenrand = s => {
+    mt[0] = s >>> 0;
+    for (let i = 1; i < N; i++) mt[i] = (Math.imul(1812433253, mt[i - 1] ^ (mt[i - 1] >>> 30)) + i) >>> 0;
+    mti = N;
+  };
+  initGenrand(19650218);
+  let i = 1, j = 0;
+  for (let k = Math.max(N, key.length); k; k--) {
+    mt[i] = ((mt[i] ^ Math.imul(mt[i - 1] ^ (mt[i - 1] >>> 30), 1664525)) + key[j] + j) >>> 0;
+    i++; j++;
+    if (i >= N) { mt[0] = mt[N - 1]; i = 1; }
+    if (j >= key.length) j = 0;
+  }
+  for (let k = N - 1; k; k--) {
+    mt[i] = ((mt[i] ^ Math.imul(mt[i - 1] ^ (mt[i - 1] >>> 30), 1566083941)) - i) >>> 0;
+    i++;
+    if (i >= N) { mt[0] = mt[N - 1]; i = 1; }
+  }
+  mt[0] = 0x80000000;
+  const int32 = () => {
+    if (mti >= N) {
+      for (let kk = 0; kk < N; kk++) {
+        const y = (mt[kk] & 0x80000000) | (mt[(kk + 1) % N] & 0x7fffffff);
+        mt[kk] = mt[(kk + 397) % N] ^ (y >>> 1) ^ (y & 1 ? 0x9908b0df : 0);
+      }
+      mti = 0;
+    }
+    let y = mt[mti++];
+    y ^= y >>> 11;
+    y ^= (y << 7) & 0x9d2c5680;
+    y ^= (y << 15) & 0xefc60000;
+    y ^= y >>> 18;
+    return y >>> 0;
+  };
+  return () => ((int32() >>> 5) * 67108864 + (int32() >>> 6)) / 9007199254740992;
+}
+
+// random.seed(n) for a whole number n: key = |n| split into 32-bit words, least significant first
+function makeRng(seedText) {
+  if (seedText === '') return Math.random;
+  let n;
+  if (/^-?\d+$/.test(seedText)) {
+    n = BigInt(seedText);
+    if (n < 0n) n = -n;
+  } else {
+    // Not a whole number: derive one (this case can't be reproduced in Python)
+    n = 0n;
+    for (const c of seedText) n = (n * 131n + BigInt(c.codePointAt(0))) % (1n << 64n);
+  }
+  const key = [];
+  do { key.push(Number(n & 0xffffffffn)); n >>= 32n; } while (n > 0n);
+  return pythonRandom(key);
+}
+
+// random.choices(population, weights)[0]: one random() per call, bisect on the cumulative weights
+function pick(weights, rng) {
+  const cum = [];
+  let acc = 0;
+  for (const w of weights) { acc += w; cum.push(acc); }
+  const x = rng() * (cum[cum.length - 1] + 0);
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (x < cum[mid]) hi = mid; else lo = mid + 1; }
+  return lo;
+}
+
+// defender = [{ controls, w }] (a mixed strategy; a fixed set has one entry with w = 1)
+function simulate(defender, q, runs, rng) {
+  const probs = defender.map(d => state.paths.map(p => edgeProbs(p, d.controls)));
+  const dw = defender.map(d => d.w);
+  let successes = 0;
+  for (let k = 0; k < runs; k++) {
+    const ps = probs[pick(dw, rng)][pick(q, rng)];
+    let ok = true;
+    for (const x of ps) if (rng() >= x) { ok = false; break; }   // edge failed, attack stops
+    if (ok) successes++;
+  }
+  return successes;
+}
+
+function expected(defender, q) {
+  return sum(defender.map(d => d.w * sum(state.paths.map((p, k) => q[k] * successProb(p, d.controls)))));
+}
+
+/* ---------- results ---------- */
+
+// Python's f'{x:.2f}': an exact tie (the stored value ends in ...5 exactly) rounds to even,
+// while JS toFixed rounds it up. toPrecision(100) gives the exact decimal value of x.
+function fmt2(x) {
+  const exact = Math.abs(x).toPrecision(100);
+  const dot = exact.indexOf('.');
+  if (dot >= 0 && /^50*$/.test(exact.slice(dot + 3))) {
+    const cents = Math.floor(Math.abs(x) * 100);
+    return (Math.sign(x) * (cents % 2 === 0 ? cents : cents + 1) / 100).toFixed(2);
+  }
+  return x.toFixed(2);
+}
+
+const payoffRow = (label, cost, u) => `
+  <tr><td>${label}</td><td class="num">${cost}</td>${u.map(x => `<td class="num">${x.toFixed(3)}</td>`).join('')}<td class="num">${Math.max(...u).toFixed(3)}</td></tr>`;
+
+function renderEquilibrium(sol) {
+  const support = new Set(sol.sigma.map((s, i) => (s > 1e-9 ? i : -1)).filter(i => i >= 0));
+  const order = sol.subsets.map((_, i) => i).sort((a, b) => sol.worst[a] - sol.worst[b] || sol.subsets[a].cost - sol.subsets[b].cost);
+  const shown = order.slice(0, 200);
+  const pathHeads = state.paths.map(p => `<th class="num">${esc(p.name)}</th>`).join('');
+
+  // Table 6: no controls, the support of sigma*, then the configurations marked "also list in Table 6"
+  const key = cs => cs.map(c => c.uid).sort().join('|');
+  const listed = new Set();
+  const table6 = [];
+  for (const i of [0, ...support]) {
+    const s = sol.subsets[i];
+    if (listed.has(key(s.controls))) continue;
+    listed.add(key(s.controls));
+    table6.push(payoffRow(esc(setLabel(s.controls)), s.cost, sol.U[i]));
+  }
+  for (const d of state.defenders.filter(d => d.inPayoff)) {
+    const cs = d.controls.map(controlByUid).filter(Boolean);
+    if (listed.has(key(cs))) continue;
+    listed.add(key(cs));
+    table6.push(payoffRow(`${esc(setLabel(cs))} (Table 5)`, setCost(cs), state.paths.map(p => successProb(p, cs))));
+  }
+
+  document.getElementById('equilibrium').innerHTML = `
+    <div class="stat-row">
+      <div class="stat"><div class="v" title="${sol.value}">${sol.value.toFixed(3)}</div><div class="l">Equilibrium value v*</div></div>
+      <div class="stat"><div class="v">${sol.subsets.length}</div><div class="l">Control sets that fit the budget of ${state.budget} (out of ${2 ** state.controls.length} possible)</div></div>
+      <div class="stat"><div class="v">${esc(setLabel(sol.subsets[sol.pure].controls))}</div><div class="l">Pure security strategy · worst path ${sol.worst[sol.pure].toFixed(3)}</div></div>
+    </div>
+    <table style="margin-bottom:10px">
+      <thead><tr><th>Attacker mixture q*</th>${state.paths.map(p => `<th class="num">${esc(p.name)}</th>`).join('')}</tr></thead>
+      <tbody><tr><td>Probability</td>${sol.q.map(x => `<td class="num">${x.toFixed(3)}</td>`).join('')}</tr></tbody>
+    </table>
+    <table>
+      <thead><tr><th>Defender mixture σ* (support)</th><th class="num">Cost</th><th class="num">Probability</th></tr></thead>
+      <tbody>${[...support].map(i => `<tr><td>${esc(setLabel(sol.subsets[i].controls))}</td><td class="num">${sol.subsets[i].cost}</td><td class="num">${sol.sigma[i].toFixed(3)}</td></tr>`).join('')}</tbody>
+    </table>
+    <h3>Table 6: Payoff matrix of the case-study game</h3>
+    <table>
+      <thead><tr><th>Defender strategy</th><th class="num">Cost</th>${pathHeads}<th class="num">Worst path</th></tr></thead>
+      <tbody>${table6.join('')}</tbody>
+    </table>
+    <details>
+      <summary>All ${sol.subsets.length} budget-feasible strategies (best first)</summary>
+      <p class="hint" style="margin-top:6px">Green = pure security strategy; bold = in the support of σ*.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Defender strategy</th><th class="num">Cost</th>${pathHeads}<th class="num">Worst path</th></tr></thead>
+        <tbody>${shown.map(i => `
+          <tr class="${i === sol.pure ? 'pure' : ''} ${support.has(i) ? 'support' : ''}">
+            <td>${esc(setLabel(sol.subsets[i].controls))}</td><td class="num">${sol.subsets[i].cost}</td>
+            ${sol.U[i].map(u => `<td class="num">${u.toFixed(3)}</td>`).join('')}
+            <td class="num">${sol.worst[i].toFixed(3)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+      ${order.length > shown.length ? `<p class="hint">Showing the best ${shown.length} of ${order.length}.</p>` : ''}
+    </details>`;
+}
+
+function defenderList(sol) {
+  const list = state.defenders.map(d => {
+    const controls = d.controls.map(controlByUid).filter(Boolean);
+    return { name: d.name, cost: setCost(controls), mix: [{ controls, w: 1 }] };
+  });
+  if (state.includePure) {
+    const s = sol.subsets[sol.pure];
+    list.push({ name: `Pure security strategy (${setLabel(s.controls)})`, cost: s.cost, mix: [{ controls: s.controls, w: 1 }], tag: 'computed' });
+  }
+  if (state.includeSigma) {
+    const mix = sol.subsets.map((s, i) => ({ controls: s.controls, w: sol.sigma[i] })).filter(m => m.w > 1e-9);
+    list.push({ name: 'Equilibrium mixture σ*', cost: Math.max(...mix.map(m => setCost(m.controls))), mix, tag: 'computed' });
+  }
+  return list;
+}
+
+function runSimulation(sol) {
+  const runs = Math.max(1, Math.floor(state.runs));
+  const reps = Math.max(1, Math.floor(state.reps));
+  const seedText = String(state.seed).trim();
+  const rng = makeRng(seedText);
+  const attackers = [
+    { name: 'Game Theory Attacker', q: sol.q },
+    { name: 'Random Attacker', q: state.paths.map(() => 1 / state.paths.length) },
+  ];
+  const defenders = defenderList(sol);
+  const cells = defenders.map(d => attackers.map(a => {
+    const counts = Array.from({ length: reps }, () => simulate(d.mix, a.q, runs, rng));
+    const mean = sum(counts) / reps;
+    const sd = reps > 1 ? Math.sqrt(sum(counts.map(c => (c - mean) ** 2)) / (reps - 1)) : 0;
+    return { mean, sd, exp: expected(d.mix, a.q) };
+  }));
+  const best = attackers.map((_, ai) => Math.min(...cells.map(r => r[ai].exp)));
+
+  document.getElementById('simulation').innerHTML = `
+    <h3 style="margin-top:0">Table 7: CRATER vs. Game Theory adversary vs. Random adversary results</h3>
+    <p class="hint">${runs.toLocaleString()} attacks × ${reps} repetitions per scenario · seed: ${seedText === '' ? 'random' : esc(seedText)}.
+      Successful attacks are the mean over the repetitions, rounded. Below each one: the standard deviation across repetitions and the exact (expected) rate.</p>
+    <table>
+      <thead><tr><th>Controls Taken</th>${attackers.map(a => `<th>${esc(a.name)}</th>`).join('')}</tr></thead>
+      <tbody>${defenders.map((d, di) => `
+        <tr>
+          <td>${esc(d.name)}${d.tag ? `<span class="tag">${d.tag}</span>` : ''} (Used budget: ${d.cost}${d.mix.length > 1 ? ', max over mixture' : ''})</td>
+          ${cells[di].map((c, ai) => `
+            <td class="${c.exp === best[ai] ? 'best' : ''}">
+              ${Math.round(c.mean)} successful attacks (${fmt2(c.mean * 100 / runs)}%)
+              <div class="muted" style="font-size:12px;font-weight:400">± ${c.sd.toFixed(1)} · exact ${fmt2(c.exp * 100)}%</div>
+            </td>`).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <p class="hint" style="margin-top:8px">Green = lowest expected success rate for that attacker. The exact value is
+      Σ weight × q × Π p·S, so the seed doesn't change it.</p>`;
+}
+
+function solveAndRender() {
+  if (!validate()) return null;
+  try {
+    lastSolution = solveGame();
+  } catch (err) {
+    document.getElementById('equilibrium').innerHTML = `<div class="warn">Could not solve the game: ${esc(err.message)}</div>`;
+    return null;
+  }
+  renderEquilibrium(lastSolution);
+  return lastSolution;
+}
+
+function markStale() {
+  if (!resultsShown) return;
+  for (const id of ['equilibrium', 'simulation']) {
+    const el = document.getElementById(id);
+    if (!el.querySelector('.note')) el.insertAdjacentHTML('afterbegin', '<div class="note">Inputs changed since these results were computed. Run again to update them.</div>');
+  }
+}
+
+/* ---------- events ---------- */
+
+function setByPath(obj, path, value) {
+  const keys = path.split('.');
+  const last = keys.pop();
+  keys.reduce((o, k) => o[k], obj)[last] = value;
+}
+
+function onEdit(ev) {
+  const el = ev.target;
+  if (!el.dataset.bind) return;
+  let value = el.value;
+  if (el.type === 'number') { value = parseFloat(el.value); if (!Number.isFinite(value)) value = 0; }
+  setByPath(state, el.dataset.bind, value);
+  save();
+  const rerender = (el.dataset.rerender || '').split(',');
+  if (rerender.includes('paths')) renderPaths();
+  if (rerender.includes('controls')) renderControls();
+  if (rerender.includes('defenders') || el.dataset.bind === 'budget') renderDefenders();
+  validate();
+  markStale();
+}
+document.addEventListener('input', onEdit);
+
+document.addEventListener('change', ev => {
+  const el = ev.target;
+  if (el.dataset.def !== undefined) {
+    const d = state.defenders[+el.dataset.def];
+    d.controls = el.checked ? [...d.controls, el.dataset.ctl] : d.controls.filter(u => u !== el.dataset.ctl);
+  } else if (el.dataset.inpayoff !== undefined) {
+    state.defenders[+el.dataset.inpayoff].inPayoff = el.checked;
+  } else if (el.id === 'includePure' || el.id === 'includeSigma') {
+    state[el.id] = el.checked;
+  } else if (el.tagName === 'SELECT') {
+    return onEdit(ev);
+  } else return;
+  save();
+  renderDefenders();
+  validate();
+  markStale();
+});
+
+const actions = {
+  runAll() {
+    const sol = solveAndRender();
+    if (!sol) return;
+    document.getElementById('simulation').innerHTML = '<p class="progress">Simulating…</p>';
+    resultsShown = true;
+    setTimeout(() => runSimulation(sol), 20);   // let the browser paint first
+  },
+  solveOnly() { if (solveAndRender()) resultsShown = true; },
+  addPath() {
+    state.paths.push({ name: `Path ${state.paths.length + 1}`, edges: [{ uid: uid(), name: `Start→X${state.paths.length + 1}`, p: 0.5 }] });
+  },
+  removePath({ p }) {
+    if (!confirm(`Remove "${state.paths[p].name}"? Controls on its edges will need a new edge.`)) return false;
+    state.paths.splice(p, 1);
+  },
+  addEdge({ p }) { state.paths[p].edges.push({ uid: uid(), name: `edge ${allEdges().length + 1}`, p: 0.5 }); },
+  removeEdge({ p, i }) { state.paths[p].edges.splice(i, 1); },
+  addControl() {
+    state.controls.push({ uid: uid(), id: `C${state.controls.length + 1}`, name: '', edgeUid: (allEdges()[0] || {}).uid || '', cost: 10, e: 0.5 });
+  },
+  removeControl({ i }) {
+    const removed = state.controls.splice(i, 1)[0];
+    for (const d of state.defenders) d.controls = d.controls.filter(u => u !== removed.uid);
+  },
+  addDefender() { state.defenders.push({ name: `Configuration ${state.defenders.length + 1}`, controls: [] }); },
+  removeDefender({ d }) { state.defenders.splice(d, 1); },
+  reset() {
+    if (!confirm("Reset everything to the paper's case study? Your current settings will be lost.")) return false;
+    state = normalise(clone(PAPER_MODEL));
+  },
+  export() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'crater-model.json' });
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return false;
+  },
+  import() { document.getElementById('importFile').click(); return false; },
+};
+
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('[data-action]');
+  if (!btn) return;
+  const name = btn.dataset.action;
+  if (name === 'runAll' || name === 'solveOnly') return actions[name]();
+  const args = { p: +btn.dataset.p, i: +btn.dataset.i, d: +btn.dataset.d };
+  if (actions[name](args) === false) return;
+  save();
+  render();
+  markStale();
+});
+
+document.getElementById('importFile').addEventListener('change', async ev => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.paths) || !Array.isArray(data.controls)) throw new Error('missing "paths" or "controls"');
+    state = normalise({ ...clone(PAPER_MODEL), ...data });
+    save();
+    render();
+    markStale();
+  } catch (err) {
+    alert('Could not import file: ' + err.message);
+  }
+  ev.target.value = '';
+});
+
+render();
+</script>
+</body>
+</html>
